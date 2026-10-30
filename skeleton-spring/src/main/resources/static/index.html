@@ -74,9 +74,8 @@
           <label>Phone (optional) <input name="phone" type="tel" autocomplete="tel"></label>
         </fieldset>
         <p class="muted" id="digital-note" hidden>Only digital products in your cart: no shipping address needed.</p>
-        <button type="submit">Continue to payment</button>
+        <button type="submit">Pay with PayPal</button>
       </form>
-      <div id="paypal-buttons"></div>
       <p id="payment-status"></p>
     </section>
   </main>
@@ -164,25 +163,8 @@
       await refreshCart();
     };
 
-    // First form of payment: PayPal Smart Buttons in the PayPal sandbox (client-id "sb" is PayPal's public test id).
-    // Replace it with our own sandbox/live client id before going live.
-    const PAYPAL_SDK = 'https://www.paypal.com/sdk/js?client-id=sb&currency=PLN&intent=capture';
     const statusEl = document.getElementById('payment-status');
-    let paypalButtonsRendered = false;
-
-    function loadPaypalSdk() {
-      if (window.paypal) return Promise.resolve();
-      return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = PAYPAL_SDK;
-        script.onload = resolve;
-        script.onerror = () => reject(new Error('Could not load PayPal'));
-        document.head.appendChild(script);
-      });
-    }
-
     const orderForm = document.getElementById('order-form');
-    let currentOrder = null;
 
     // Step 1: show the contact / shipping form. Shipping is only needed when the cart has physical products.
     document.getElementById('checkout').onclick = async () => {
@@ -200,7 +182,7 @@
       orderForm.elements.email.focus();
     };
 
-    // Step 2: save the order (status PENDING, price snapshot) and show the PayPal buttons for exactly that amount.
+    // Step 2: save the order (status PENDING, price snapshot) and go to the simulated PayPal page for that order.
     orderForm.onsubmit = async event => {
       event.preventDefault();
       const field = name => orderForm.elements[name].value;
@@ -208,32 +190,18 @@
         ? Object.fromEntries(['fullName', 'street', 'houseNumber', 'postalCode', 'city', 'country', 'phone']
             .map(name => [name, field(name)]))
         : null;
-      try {
-        currentOrder = await api('/api/orders', { method: 'POST', body: JSON.stringify({ email: field('email'), shipping }) });
-        await loadPaypalSdk();
-      } catch (e) {
-        errorEl.textContent = errorEl.textContent || e.message;
-        return;
-      }
-      statusEl.textContent = `Order ${currentOrder.id} saved. Total ${formatPln(currentOrder.pricing.gross)}. Pay with PayPal to complete it.`;
-      if (paypalButtonsRendered) return;
-      paypalButtonsRendered = true;
-      paypal.Buttons({
-        // The amount is the total of the saved order (incl. VAT), not something the browser computes.
-        createOrder: (data, actions) => actions.order.create({
-          purchase_units: [{ amount: { currency_code: 'PLN', value: currentOrder.pricing.gross.toFixed(2) } }]
-        }),
-        onApprove: async (data, actions) => {
-          const capture = await actions.order.capture();
-          const paid = await api(`/api/orders/${currentOrder.id}/payment`, { method: 'POST', body: JSON.stringify({ paypalOrderId: capture.id }) });
-          statusEl.textContent = `Payment completed. Order ${paid.id} is paid. Thank you!`;
-          orderForm.hidden = true;
-          orderForm.reset();
-          await refreshCart();
-        },
-        onError: err => { errorEl.textContent = 'Payment failed: ' + err; }
-      }).render('#paypal-buttons');
+      const order = await api('/api/orders', { method: 'POST', body: JSON.stringify({ email: field('email'), shipping }) });
+      location.href = `/paypal-simulator.html?order=${encodeURIComponent(order.id)}`;
     };
+
+    // Back from the simulated PayPal page.
+    const returned = new URLSearchParams(location.search);
+    if (returned.has('paid')) {
+      statusEl.textContent = `Payment completed. Order ${returned.get('paid')} is paid. Thank you!`;
+    } else if (returned.has('cancelled')) {
+      statusEl.textContent = `Payment cancelled. Order ${returned.get('cancelled')} is saved but not paid; your cart is unchanged.`;
+    }
+    if (returned.size) history.replaceState(null, '', location.pathname);
 
     Promise.all([api('/api/products'), api('/api/pricing/products')])
       .then(([products, prices]) => renderProducts(products, prices));

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PayPal (simulation)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f5f7fa; color: #222; }
+    .banner { background: #fff3cd; color: #664d03; text-align: center; padding: .4rem; font-size: .85rem; }
+    .card { max-width: 440px; margin: 2rem auto; background: #fff; border-radius: 12px; padding: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+    .logo { font-size: 1.6rem; font-weight: bold; font-style: italic; color: #003087; }
+    .logo span { color: #009cde; }
+    h2 { font-size: 1rem; margin: 1.25rem 0 .25rem; color: #555; text-transform: uppercase; letter-spacing: .03em; }
+    .amount { font-size: 2rem; font-weight: bold; margin: .5rem 0; }
+    dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; }
+    dt { color: #777; }
+    dd { margin: 0; }
+    .actions { display: grid; gap: .6rem; margin-top: 1.5rem; }
+    button { font: inherit; font-weight: bold; padding: .7rem; border-radius: 999px; border: 0; cursor: pointer; }
+    #pay { background: #ffc439; }
+    #pay:hover { background: #f2ba36; }
+    #cancel { background: none; color: #003087; text-decoration: underline; }
+    #error { color: #b00; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <div class="banner">Simulation: no real payment is made and no PayPal account is used.</div>
+  <div class="card">
+    <div class="logo">Pay<span>Pal</span></div>
+    <p id="error"></p>
+    <div id="content" hidden>
+      <p>Pay <strong>EuroCart</strong></p>
+      <div class="amount" id="amount"></div>
+      <dl><dt>Order</dt><dd id="order-id"></dd><dt>Email</dt><dd id="email"></dd></dl>
+
+      <h2>Ship to</h2>
+      <dl id="shipping"></dl>
+
+      <div class="actions">
+        <button id="pay">Pay Now</button>
+        <button id="cancel">Cancel and return to EuroCart</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const orderId = new URLSearchParams(location.search).get('order');
+    const plnFormat = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' });
+    const errorEl = document.getElementById('error');
+
+    function row(list, label, value) {
+      list.appendChild(Object.assign(document.createElement('dt'), { textContent: label }));
+      list.appendChild(Object.assign(document.createElement('dd'), { textContent: value }));
+    }
+
+    async function load() {
+      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+      const order = await response.json().catch(() => null);
+      if (!response.ok) {
+        errorEl.textContent = (order && order.detail) || 'Order not found.';
+        return;
+      }
+      if (order.status === 'PAID') {
+        location.replace(`/?paid=${encodeURIComponent(order.id)}`);
+        return;
+      }
+      document.getElementById('amount').textContent = plnFormat.format(order.pricing.gross);
+      document.getElementById('order-id').textContent = order.id;
+      document.getElementById('email').textContent = order.email;
+
+      const shipping = document.getElementById('shipping');
+      const a = order.shipping;
+      if (a) {
+        row(shipping, 'Name', a.fullName);
+        row(shipping, 'Street', `${a.street} ${a.houseNumber}`);
+        row(shipping, 'City', `${a.postalCode} ${a.city}`);
+        row(shipping, 'Country', a.country);
+        if (a.phone) row(shipping, 'Phone', a.phone);
+      } else {
+        row(shipping, '', 'Digital products only: nothing is shipped.');
+      }
+      document.getElementById('content').hidden = false;
+    }
+
+    document.getElementById('pay').onclick = async () => {
+      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paypalOrderId: 'SIM-' + crypto.randomUUID() })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        errorEl.textContent = (body && body.detail) || 'Payment failed.';
+        return;
+      }
+      location.href = `/?paid=${encodeURIComponent(orderId)}`;
+    };
+
+    document.getElementById('cancel').onclick = () => {
+      location.href = `/?cancelled=${encodeURIComponent(orderId)}`;
+    };
+
+    load();
+  </script>
+</body>
+</html>
