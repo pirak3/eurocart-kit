@@ -20,6 +20,13 @@
     tfoot td { font-weight: bold; border-top: 2px solid #ccc; }
     .muted { color: #888; font-size: .85rem; }
     #error { color: #b00; min-height: 1.2em; }
+    form { margin-top: 1rem; }
+    fieldset { border: 1px solid #ddd; border-radius: 4px; margin: 0 0 .75rem; padding: .5rem .75rem; }
+    legend { font-size: .85rem; color: #666; }
+    label { display: block; margin: .4rem 0 0; font-size: .85rem; color: #444; }
+    input, select { width: 100%; box-sizing: border-box; padding: .3rem .4rem; border: 1px solid #bbb; border-radius: 4px; font: inherit; }
+    .row { display: grid; grid-template-columns: 2fr 1fr; gap: .5rem; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
@@ -28,7 +35,7 @@
   <main>
     <section>
       <h2>Products</h2>
-      <p class="muted">Prices in PLN, including Polish VAT, excluding shipping.</p>
+      <p class="muted">Prices in PLN, including Polish VAT. Shipping is added per order for physical products.</p>
       <div id="products"></div>
     </section>
     <section>
@@ -37,12 +44,38 @@
         <thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Excl. VAT</th><th class="num">VAT</th><th class="num">Incl. VAT</th><th></th></tr></thead>
         <tbody id="cart-lines"></tbody>
         <tfoot>
+          <tr><td colspan="2">Shipping (excl. VAT)</td><td class="num" id="shipping" colspan="3">–</td><td></td></tr>
           <tr><td colspan="2">Subtotal (excl. VAT)</td><td class="num" id="subtotal" colspan="3">0,00 zł</td><td></td></tr>
           <tr><td colspan="2">VAT</td><td class="num" id="vat-total" colspan="3">0,00 zł</td><td></td></tr>
           <tr><td colspan="2">Total (incl. VAT)</td><td class="num" id="total" colspan="3">0,00 zł</td><td></td></tr>
         </tfoot>
       </table>
       <p><button id="checkout">Checkout</button> <button id="clear">Empty cart</button></p>
+
+      <form id="order-form" hidden>
+        <fieldset>
+          <legend>Contact</legend>
+          <label>Email <input name="email" type="email" autocomplete="email" required></label>
+        </fieldset>
+        <fieldset id="shipping-fields">
+          <legend>Shipping address</legend>
+          <label>Full name <input name="fullName" autocomplete="name"></label>
+          <div class="row">
+            <label>Street <input name="street" autocomplete="address-line1"></label>
+            <label>House number <input name="houseNumber"></label>
+          </div>
+          <div class="row">
+            <label>Postal code <input name="postalCode" placeholder="00-950" autocomplete="postal-code"></label>
+            <label>City <input name="city" autocomplete="address-level2"></label>
+          </div>
+          <label>Country
+            <select name="country"><option value="PL" selected>Poland</option></select>
+          </label>
+          <label>Phone (optional) <input name="phone" type="tel" autocomplete="tel"></label>
+        </fieldset>
+        <p class="muted" id="digital-note" hidden>Only digital products in your cart: no shipping address needed.</p>
+        <button type="submit">Continue to payment</button>
+      </form>
       <div id="paypal-buttons"></div>
       <p id="payment-status"></p>
     </section>
@@ -107,6 +140,7 @@
         button.onclick = () => removeFromCart(line.product.id);
         action.appendChild(button);
       }
+      document.getElementById('shipping').textContent = cart.shipping ? formatPln(cart.shipping.net) : '–';
       document.getElementById('subtotal').textContent = formatPln(cart.net);
       document.getElementById('vat-total').textContent = formatPln(cart.vat);
       document.getElementById('total').textContent = formatPln(cart.gross);
@@ -147,6 +181,10 @@
       });
     }
 
+    const orderForm = document.getElementById('order-form');
+    let currentOrder = null;
+
+    // Step 1: show the contact / shipping form. Shipping is only needed when the cart has physical products.
     document.getElementById('checkout').onclick = async () => {
       statusEl.textContent = '';
       const cart = await api('/api/pricing/cart');
@@ -154,25 +192,43 @@
         errorEl.textContent = 'Your cart is empty.';
         return;
       }
+      const physical = cart.lines.some(line => line.product.category !== 'EBOOK');
+      document.getElementById('shipping-fields').hidden = !physical;
+      document.getElementById('digital-note').hidden = physical;
+      orderForm.dataset.physical = physical;
+      orderForm.hidden = false;
+      orderForm.elements.email.focus();
+    };
+
+    // Step 2: save the order (status PENDING, price snapshot) and show the PayPal buttons for exactly that amount.
+    orderForm.onsubmit = async event => {
+      event.preventDefault();
+      const field = name => orderForm.elements[name].value;
+      const shipping = orderForm.dataset.physical === 'true'
+        ? Object.fromEntries(['fullName', 'street', 'houseNumber', 'postalCode', 'city', 'country', 'phone']
+            .map(name => [name, field(name)]))
+        : null;
       try {
+        currentOrder = await api('/api/orders', { method: 'POST', body: JSON.stringify({ email: field('email'), shipping }) });
         await loadPaypalSdk();
       } catch (e) {
-        errorEl.textContent = e.message;
+        errorEl.textContent = errorEl.textContent || e.message;
         return;
       }
+      statusEl.textContent = `Order ${currentOrder.id} saved. Total ${formatPln(currentOrder.pricing.gross)}. Pay with PayPal to complete it.`;
       if (paypalButtonsRendered) return;
       paypalButtonsRendered = true;
       paypal.Buttons({
-        // The amount is read from the server's priced cart (incl. VAT) at the moment the buyer clicks.
-        createOrder: async (data, actions) => {
-          const current = await api('/api/pricing/cart');
-          const value = current.gross.toFixed(2);
-          return actions.order.create({ purchase_units: [{ amount: { currency_code: 'PLN', value } }] });
-        },
+        // The amount is the total of the saved order (incl. VAT), not something the browser computes.
+        createOrder: (data, actions) => actions.order.create({
+          purchase_units: [{ amount: { currency_code: 'PLN', value: currentOrder.pricing.gross.toFixed(2) } }]
+        }),
         onApprove: async (data, actions) => {
-          const order = await actions.order.capture();
-          statusEl.textContent = `Payment completed. Order ${order.id}. Thank you!`;
-          await api('/api/cart', { method: 'DELETE' });
+          const capture = await actions.order.capture();
+          const paid = await api(`/api/orders/${currentOrder.id}/payment`, { method: 'POST', body: JSON.stringify({ paypalOrderId: capture.id }) });
+          statusEl.textContent = `Payment completed. Order ${paid.id} is paid. Thank you!`;
+          orderForm.hidden = true;
+          orderForm.reset();
           await refreshCart();
         },
         onError: err => { errorEl.textContent = 'Payment failed: ' + err; }

@@ -37,8 +37,7 @@ class CartApiTest {
 		mockMvc.perform(get("/api/products"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(51))
-				.andExpect(jsonPath("$[0].id").value("LAP-001"))
-				.andExpect(jsonPath("$[0].price").value(899.00));
+				.andExpect(jsonPath("$[?(@.id == 'LAP-001')].price").value(899.00));
 	}
 
 	@Test

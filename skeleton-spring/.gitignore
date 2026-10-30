@@ -3,3 +3,6 @@ target/
 *.iml
 .vscode/
 .DS_Store
+
+# Saved orders
+data/
