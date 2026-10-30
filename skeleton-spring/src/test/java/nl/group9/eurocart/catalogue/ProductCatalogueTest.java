@@ -51,6 +51,24 @@ class ProductCatalogueTest {
 	}
 
 	@Test
+	void everyProductHasAVatPercentageForEverySupportedCountry() {
+		assertThat(catalogue.all()).allSatisfy(product -> {
+			assertThat(product.vatPercent()).containsOnlyKeys(EnumSet.allOf(Country.class));
+			assertThat(product.vatPercent().values()).allSatisfy(percent ->
+					assertThat(percent).isBetween(BigDecimal.ZERO, new BigDecimal("100")));
+		});
+	}
+
+	@Test
+	void looksUpTheVatPercentageOfAProductPerCountry() {
+		Product laptop = catalogue.find("LAP-001").orElseThrow();
+
+		assertThat(laptop.vatPercent(Country.NL)).isEqualByComparingTo("21");
+		assertThat(laptop.vatPercent(Country.PL)).isEqualByComparingTo("23");
+		assertThat(laptop.vatPercent(Country.CH)).isEqualByComparingTo("8.1");
+	}
+
+	@Test
 	void findsProductById() {
 		assertThat(catalogue.find("LAP-001")).isPresent()
 				.get().extracting(Product::category).isEqualTo(Category.LAPTOP);

@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 
 import nl.group9.eurocart.cart.CartLine;
 import nl.group9.eurocart.cart.CartView;
-import nl.group9.eurocart.catalogue.Category;
+import nl.group9.eurocart.catalogue.Country;
 import nl.group9.eurocart.catalogue.Product;
 import nl.group9.eurocart.catalogue.ProductCatalogue;
 
@@ -27,13 +27,7 @@ public class PricingService {
 	/** ECB reference rate of 2026-10-29. */
 	static final BigDecimal EUR_TO_PLN = new BigDecimal("4.3938");
 
-	/** ASSUMPTION: to be confirmed by compliance / the product owner. */
-	private static final Map<Category, BigDecimal> POLISH_VAT_PERCENT = Map.of(
-			Category.LAPTOP, new BigDecimal("23"),
-			Category.BOOK, new BigDecimal("5"),
-			Category.FOOD, new BigDecimal("5"),
-			Category.MEDICINE, new BigDecimal("8"),
-			Category.EBOOK, new BigDecimal("5"));
+	static final Country COUNTRY = Country.PL;
 
 	private final ProductCatalogue catalogue;
 
@@ -44,7 +38,7 @@ public class PricingService {
 	/** Price per unit of every catalogue product, by product id. */
 	public Map<String, Price> productPrices() {
 		return catalogue.all().stream()
-				.collect(Collectors.toMap(Product::id, product -> price(product.price(), product.category())));
+				.collect(Collectors.toMap(Product::id, product -> price(product.price(), product)));
 	}
 
 	public PricedCart price(CartView cart) {
@@ -53,16 +47,16 @@ public class PricingService {
 				sum(lines, Price::net), sum(lines, Price::vat), sum(lines, Price::gross));
 	}
 
-	/** Prices {@code euros} (EUR, excl. VAT) of a product in the given category. */
-	Price price(BigDecimal euros, Category category) {
-		BigDecimal vatPercent = POLISH_VAT_PERCENT.get(category);
+	/** Prices {@code euros} (EUR, excl. VAT) of {@code product}, using its VAT percentage for {@link #COUNTRY}. */
+	Price price(BigDecimal euros, Product product) {
+		BigDecimal vatPercent = product.vatPercent(COUNTRY);
 		BigDecimal net = euros.multiply(EUR_TO_PLN).setScale(2, RoundingMode.HALF_UP);
 		BigDecimal vat = net.multiply(vatPercent).movePointLeft(2).setScale(2, RoundingMode.HALF_UP);
 		return new Price(vatPercent, net, vat, net.add(vat));
 	}
 
 	private PricedLine price(CartLine line) {
-		return new PricedLine(line.product(), line.quantity(), price(line.lineTotal(), line.product().category()));
+		return new PricedLine(line.product(), line.quantity(), price(line.lineTotal(), line.product()));
 	}
 
 	private static BigDecimal sum(List<PricedLine> lines, Function<Price, BigDecimal> amount) {

@@ -3,6 +3,7 @@ package nl.group9.eurocart.catalogue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,9 @@ public class ProductCatalogue {
 			});
 			Map<String, Product> byId = new LinkedHashMap<>();
 			for (Product product : products) {
+				if (product.vatPercent() == null || !product.vatPercent().keySet().containsAll(EnumSet.allOf(Country.class))) {
+					throw new IllegalStateException("Missing VAT percentage per country in catalogue.json: " + product.id());
+				}
 				if (byId.put(product.id(), product) != null) {
 					throw new IllegalStateException("Duplicate product id in catalogue.json: " + product.id());
 				}
