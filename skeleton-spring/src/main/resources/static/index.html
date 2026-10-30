@@ -28,25 +28,30 @@
   <main>
     <section>
       <h2>Products</h2>
-      <p class="muted">Prices in PLN (1 EUR = 4.3938 PLN), excluding VAT and shipping.</p>
+      <p class="muted">Prices in PLN, including Polish VAT, excluding shipping.</p>
       <div id="products"></div>
     </section>
     <section>
       <h2>Cart</h2>
       <table>
-        <thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Line total</th><th></th></tr></thead>
+        <thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Excl. VAT</th><th class="num">VAT</th><th class="num">Incl. VAT</th><th></th></tr></thead>
         <tbody id="cart-lines"></tbody>
-        <tfoot><tr><td>Subtotal (excl. VAT)</td><td></td><td class="num" id="subtotal">0,00 zł</td><td></td></tr></tfoot>
+        <tfoot>
+          <tr><td colspan="2">Subtotal (excl. VAT)</td><td class="num" id="subtotal" colspan="3">0,00 zł</td><td></td></tr>
+          <tr><td colspan="2">VAT</td><td class="num" id="vat-total" colspan="3">0,00 zł</td><td></td></tr>
+          <tr><td colspan="2">Total (incl. VAT)</td><td class="num" id="total" colspan="3">0,00 zł</td><td></td></tr>
+        </tfoot>
       </table>
-      <p><button id="clear">Checkout</button></p>
+      <p><button id="checkout">Checkout</button> <button id="clear">Empty cart</button></p>
+      <div id="paypal-buttons"></div>
+      <p id="payment-status"></p>
     </section>
   </main>
 
   <script>
-    // Catalogue prices are in EUR; shown in PLN at a fixed rate (ECB reference rate, 2026-10-29).
-    const EUR_TO_PLN = 4.3938;
+    // All amounts come from the backend PricingService, already converted to PLN and including VAT.
     const plnFormat = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' });
-    const pln = euros => plnFormat.format(euros * EUR_TO_PLN);
+    const formatPln = amount => plnFormat.format(amount);
     const errorEl = document.getElementById('error');
 
     async function api(path, options) {
@@ -60,7 +65,7 @@
       return body;
     }
 
-    function renderProducts(products) {
+    function renderProducts(products, prices) {
       const byCategory = Map.groupBy(products, p => p.category);
       const container = document.getElementById('products');
       container.innerHTML = '';
@@ -73,7 +78,8 @@
           const row = table.insertRow();
           row.insertCell().textContent = p.name;
           row.insertCell().innerHTML = `<span class="muted">${p.countryOfOrigin}</span>`;
-          const price = row.insertCell(); price.className = 'num'; price.textContent = pln(p.price);
+          const price = row.insertCell(); price.className = 'num';
+          price.textContent = formatPln(prices[p.id].gross);
           const action = row.insertCell(); action.className = 'num';
           const button = document.createElement('button');
           button.textContent = 'Add';
@@ -91,28 +97,91 @@
         const row = tbody.insertRow();
         row.insertCell().textContent = line.product.name;
         const qty = row.insertCell(); qty.className = 'num'; qty.textContent = line.quantity;
-        const total = row.insertCell(); total.className = 'num'; total.textContent = pln(line.lineTotal);
+        const { vatPercent, net, vat, gross } = line.price;
+        const excl = row.insertCell(); excl.className = 'num'; excl.textContent = formatPln(net);
+        const vatCell = row.insertCell(); vatCell.className = 'num'; vatCell.textContent = `${formatPln(vat)} (${vatPercent}%)`;
+        const incl = row.insertCell(); incl.className = 'num'; incl.textContent = formatPln(gross);
         const action = row.insertCell(); action.className = 'num';
         const button = document.createElement('button');
         button.textContent = 'Remove';
         button.onclick = () => removeFromCart(line.product.id);
         action.appendChild(button);
       }
-      document.getElementById('subtotal').textContent = pln(cart.subtotal);
+      document.getElementById('subtotal').textContent = formatPln(cart.net);
+      document.getElementById('vat-total').textContent = formatPln(cart.vat);
+      document.getElementById('total').textContent = formatPln(cart.gross);
     }
 
+    // The cart endpoints change the cart; the priced cart (PLN, VAT) is always read from the pricing endpoint.
+    const refreshCart = async () => renderCart(await api('/api/pricing/cart'));
+
     async function addToCart(productId) {
-      renderCart(await api('/api/cart/items', { method: 'POST', body: JSON.stringify({ productId, quantity: 1 }) }));
+      await api('/api/cart/items', { method: 'POST', body: JSON.stringify({ productId, quantity: 1 }) });
+      await refreshCart();
     }
 
     async function removeFromCart(productId) {
-      renderCart(await api(`/api/cart/items/${productId}`, { method: 'DELETE' }));
+      await api(`/api/cart/items/${productId}`, { method: 'DELETE' });
+      await refreshCart();
     }
 
-    document.getElementById('clear').onclick = async () => renderCart(await api('/api/cart', { method: 'DELETE' }));
+    document.getElementById('clear').onclick = async () => {
+      await api('/api/cart', { method: 'DELETE' });
+      await refreshCart();
+    };
 
-    api('/api/products').then(renderProducts);
-    api('/api/cart').then(renderCart);
+    // First form of payment: PayPal Smart Buttons in the PayPal sandbox (client-id "sb" is PayPal's public test id).
+    // Replace it with our own sandbox/live client id before going live.
+    const PAYPAL_SDK = 'https://www.paypal.com/sdk/js?client-id=sb&currency=PLN&intent=capture';
+    const statusEl = document.getElementById('payment-status');
+    let paypalButtonsRendered = false;
+
+    function loadPaypalSdk() {
+      if (window.paypal) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = PAYPAL_SDK;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Could not load PayPal'));
+        document.head.appendChild(script);
+      });
+    }
+
+    document.getElementById('checkout').onclick = async () => {
+      statusEl.textContent = '';
+      const cart = await api('/api/pricing/cart');
+      if (cart.lines.length === 0) {
+        errorEl.textContent = 'Your cart is empty.';
+        return;
+      }
+      try {
+        await loadPaypalSdk();
+      } catch (e) {
+        errorEl.textContent = e.message;
+        return;
+      }
+      if (paypalButtonsRendered) return;
+      paypalButtonsRendered = true;
+      paypal.Buttons({
+        // The amount is read from the server's priced cart (incl. VAT) at the moment the buyer clicks.
+        createOrder: async (data, actions) => {
+          const current = await api('/api/pricing/cart');
+          const value = current.gross.toFixed(2);
+          return actions.order.create({ purchase_units: [{ amount: { currency_code: 'PLN', value } }] });
+        },
+        onApprove: async (data, actions) => {
+          const order = await actions.order.capture();
+          statusEl.textContent = `Payment completed. Order ${order.id}. Thank you!`;
+          await api('/api/cart', { method: 'DELETE' });
+          await refreshCart();
+        },
+        onError: err => { errorEl.textContent = 'Payment failed: ' + err; }
+      }).render('#paypal-buttons');
+    };
+
+    Promise.all([api('/api/products'), api('/api/pricing/products')])
+      .then(([products, prices]) => renderProducts(products, prices));
+    refreshCart();
   </script>
 </body>
 </html>
