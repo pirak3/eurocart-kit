@@ -16,18 +16,22 @@ import nl.group9.eurocart.catalogue.ProductCatalogue;
 import org.springframework.stereotype.Service;
 
 /**
- * Prices catalogue amounts (EUR, excl. VAT) for Poland: converts to PLN at a fixed rate and adds VAT.
+ * Prices catalogue amounts (EUR, excl. VAT) for the storefront of a country: converts to the currency of that
+ * country at a fixed rate and adds the VAT the product has in that country.
  * Rounding is HALF_UP to 2 decimals, first the net amount, then the VAT over that net amount.
  */
 @Service
 public class PricingService {
 
-	static final String CURRENCY = "PLN";
-
-	/** ECB reference rate of 2026-10-29. */
-	static final BigDecimal EUR_TO_PLN = new BigDecimal("4.3938");
-
-	static final Country COUNTRY = Country.PL;
+	/**
+	 * Units of each currency per EUR. PLN is the ECB reference rate of 2026-10-29.
+	 * ASSUMPTION: CHF and GBP are placeholders, to be replaced by the ECB reference rates.
+	 */
+	static final Map<String, BigDecimal> EUR_RATES = Map.of(
+			"EUR", BigDecimal.ONE,
+			"PLN", new BigDecimal("4.3938"),
+			"CHF", new BigDecimal("0.9300"),
+			"GBP", new BigDecimal("0.8700"));
 
 	private final ProductCatalogue catalogue;
 
@@ -35,28 +39,28 @@ public class PricingService {
 		this.catalogue = catalogue;
 	}
 
-	/** Price per unit of every catalogue product, by product id. */
-	public Map<String, Price> productPrices() {
+	/** Price per unit of every catalogue product in the storefront of {@code country}, by product id. */
+	public Map<String, Price> productPrices(Country country) {
 		return catalogue.all().stream()
-				.collect(Collectors.toMap(Product::id, product -> price(product.price(), product)));
+				.collect(Collectors.toMap(Product::id, product -> price(product.price(), product, country)));
 	}
 
-	public PricedCart price(CartView cart) {
-		List<PricedLine> lines = cart.lines().stream().map(this::price).toList();
-		return new PricedCart(CURRENCY, lines,
+	public PricedCart price(CartView cart, Country country) {
+		List<PricedLine> lines = cart.lines().stream().map(line -> price(line, country)).toList();
+		return new PricedCart(country.currency(), lines,
 				sum(lines, Price::net), sum(lines, Price::vat), sum(lines, Price::gross));
 	}
 
-	/** Prices {@code euros} (EUR, excl. VAT) of {@code product}, using its VAT percentage for {@link #COUNTRY}. */
-	Price price(BigDecimal euros, Product product) {
-		BigDecimal vatPercent = product.vatPercent(COUNTRY);
-		BigDecimal net = euros.multiply(EUR_TO_PLN).setScale(2, RoundingMode.HALF_UP);
+	/** Prices {@code euros} (EUR, excl. VAT) of {@code product} in the storefront of {@code country}. */
+	Price price(BigDecimal euros, Product product, Country country) {
+		BigDecimal vatPercent = product.vatPercent(country);
+		BigDecimal net = euros.multiply(EUR_RATES.get(country.currency())).setScale(2, RoundingMode.HALF_UP);
 		BigDecimal vat = net.multiply(vatPercent).movePointLeft(2).setScale(2, RoundingMode.HALF_UP);
 		return new Price(vatPercent, net, vat, net.add(vat));
 	}
 
-	private PricedLine price(CartLine line) {
-		return new PricedLine(line.product(), line.quantity(), price(line.lineTotal(), line.product()));
+	private PricedLine price(CartLine line, Country country) {
+		return new PricedLine(line.product(), line.quantity(), price(line.lineTotal(), line.product(), country));
 	}
 
 	private static BigDecimal sum(List<PricedLine> lines, Function<Price, BigDecimal> amount) {

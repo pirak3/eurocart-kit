@@ -34,7 +34,26 @@ class PricingServiceTest {
 			"MED-001,  8, 439.38,  35.15, 474.53"
 	})
 	void pricesOneHundredEuroWithThePolishVatOfTheProduct(String productId, String vatPercent, String net, String vat, String gross) {
-		Price price = pricing.price(new BigDecimal("100.00"), catalogue.find(productId).orElseThrow());
+		Price price = pricing.price(new BigDecimal("100.00"), catalogue.find(productId).orElseThrow(), Country.PL);
+
+		assertThat(price.vatPercent()).isEqualByComparingTo(vatPercent);
+		assertThat(price.net()).isEqualTo(new BigDecimal(net));
+		assertThat(price.vat()).isEqualTo(new BigDecimal(vat));
+		assertThat(price.gross()).isEqualTo(new BigDecimal(gross));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"LAP-001, NL,  21,  899.00, 188.79, 1087.79",
+			"LAP-001, CH, 8.1,  836.07,  67.72,  903.79",
+			"LAP-001, GB,  20,  782.13, 156.43,  938.56",
+			"BOK-001, GB,   0,   10.88,   0.00,   10.88"
+	})
+	void pricesInTheCurrencyAndWithTheVatOfTheStorefront(String productId, Country country, String vatPercent,
+			String net, String vat, String gross) {
+		Product product = catalogue.find(productId).orElseThrow();
+
+		Price price = pricing.price(product.price(), product, country);
 
 		assertThat(price.vatPercent()).isEqualByComparingTo(vatPercent);
 		assertThat(price.net()).isEqualTo(new BigDecimal(net));
@@ -43,9 +62,19 @@ class PricingServiceTest {
 	}
 
 	@Test
+	void pricesTheCartInTheCurrencyOfTheStorefront() {
+		CartView cart = new CartView(List.of(CartLine.of(catalogue.find("LAP-001").orElseThrow(), 1)),
+				new BigDecimal("899.00"));
+
+		assertThat(pricing.price(cart, Country.DE).currency()).isEqualTo("EUR");
+		assertThat(pricing.price(cart, Country.CH).currency()).isEqualTo("CHF");
+		assertThat(pricing.price(cart, Country.GB).currency()).isEqualTo("GBP");
+	}
+
+	@Test
 	void roundsNetHalfUp() {
 		// 25.00 EUR * 4.3938 = 109.8450 PLN
-		Price price = pricing.price(new BigDecimal("25.00"), product("T-1", Category.BOOK, "12.50", "5"));
+		Price price = pricing.price(new BigDecimal("25.00"), product("T-1", Category.BOOK, "12.50", "5"), Country.PL);
 
 		assertThat(price.net()).isEqualTo(new BigDecimal("109.85"));
 		assertThat(price.vat()).isEqualTo(new BigDecimal("5.49"));
@@ -58,7 +87,7 @@ class PricingServiceTest {
 		Product book = product("T-2", Category.BOOK, "12.50", "5");
 		CartView cart = new CartView(List.of(CartLine.of(laptop, 1), CartLine.of(book, 2)), new BigDecimal("924.00"));
 
-		PricedCart priced = pricing.price(cart);
+		PricedCart priced = pricing.price(cart, Country.PL);
 
 		assertThat(priced.currency()).isEqualTo("PLN");
 		assertThat(priced.net()).isEqualTo(new BigDecimal("4059.88"));
@@ -68,7 +97,7 @@ class PricingServiceTest {
 
 	@Test
 	void emptyCartCostsNothing() {
-		PricedCart priced = pricing.price(new CartView(List.of(), BigDecimal.ZERO));
+		PricedCart priced = pricing.price(new CartView(List.of(), BigDecimal.ZERO), Country.PL);
 
 		assertThat(priced.lines()).isEmpty();
 		assertThat(priced.gross()).isEqualByComparingTo("0");
@@ -78,7 +107,7 @@ class PricingServiceTest {
 	void usesTheVatOfTheProductNotOfItsCategory() {
 		Product zeroRatedLaptop = product("T-1", Category.LAPTOP, "100.00", "0");
 
-		Price price = pricing.price(new BigDecimal("100.00"), zeroRatedLaptop);
+		Price price = pricing.price(new BigDecimal("100.00"), zeroRatedLaptop, Country.PL);
 
 		assertThat(price.vatPercent()).isEqualByComparingTo("0");
 		assertThat(price.vat()).isEqualByComparingTo("0");

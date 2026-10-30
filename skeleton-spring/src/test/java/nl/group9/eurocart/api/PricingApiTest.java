@@ -55,4 +55,33 @@ class PricingApiTest {
 				.andExpect(jsonPath("$.gross").value(4973.88));
 	}
 
+	@Test
+	void listsAStorefrontPerCountry() throws Exception {
+		mockMvc.perform(get("/api/pricing/storefronts"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.length()").value(6))
+				.andExpect(jsonPath("$[0].country").value("NL"))
+				.andExpect(jsonPath("$[0].currency").value("EUR"));
+	}
+
+	@Test
+	void pricesForTheRequestedStorefront() throws Exception {
+		cartService.add("LAP-001", 1);
+
+		mockMvc.perform(get("/api/pricing/products").param("country", "NL"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$['LAP-001'].vatPercent").value(21))
+				.andExpect(jsonPath("$['LAP-001'].gross").value(1087.79));
+		mockMvc.perform(get("/api/pricing/cart").param("country", "NL"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.currency").value("EUR"))
+				.andExpect(jsonPath("$.gross").value(1087.79));
+	}
+
+	@Test
+	void rejectsAnUnknownStorefront() throws Exception {
+		mockMvc.perform(get("/api/pricing/cart").param("country", "XX"))
+				.andExpect(status().isBadRequest());
+	}
+
 }

@@ -1,14 +1,18 @@
 package nl.group9.eurocart.api;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import nl.group9.eurocart.cart.CartService;
+import nl.group9.eurocart.catalogue.Country;
 import nl.group9.eurocart.pricing.PricedCart;
 import nl.group9.eurocart.pricing.Price;
 import nl.group9.eurocart.pricing.PricingService;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -24,14 +28,22 @@ public class PricingController {
 		this.cart = cart;
 	}
 
+	@GetMapping("/storefronts")
+	public List<Storefront> storefronts() {
+		return Arrays.stream(Country.values()).map(country -> new Storefront(country, country.currency())).toList();
+	}
+
 	@GetMapping("/products")
-	public Map<String, Price> products() {
-		return pricing.productPrices();
+	public Map<String, Price> products(@RequestParam(defaultValue = "PL") Country country) {
+		return pricing.productPrices(country);
 	}
 
 	@GetMapping("/cart")
-	public PricedCart cart() {
-		return pricing.price(cart.view());
+	public PricedCart cart(@RequestParam(defaultValue = "PL") Country country) {
+		return pricing.price(cart.view(), country);
+	}
+
+	public record Storefront(Country country, String currency) {
 	}
 
 }

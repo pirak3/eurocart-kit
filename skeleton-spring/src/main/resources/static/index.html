@@ -20,15 +20,21 @@
     tfoot td { font-weight: bold; border-top: 2px solid #ccc; }
     .muted { color: #888; font-size: .85rem; }
     #error { color: #b00; min-height: 1.2em; }
+    header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1rem; margin-bottom: 1rem; }
+    header h1 { margin: 0; }
+    select { font: inherit; padding: .15rem .3rem; }
   </style>
 </head>
 <body>
-  <h1>EuroCart</h1>
+  <header>
+    <h1>EuroCart</h1>
+    <label>Storefront <select id="storefront"></select></label>
+  </header>
   <p id="error"></p>
   <main>
     <section>
       <h2>Products</h2>
-      <p class="muted">Prices in PLN, including Polish VAT, excluding shipping.</p>
+      <p class="muted" id="price-note"></p>
       <div id="products"></div>
     </section>
     <section>
@@ -37,22 +43,50 @@
         <thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Excl. VAT</th><th class="num">VAT</th><th class="num">Incl. VAT</th><th></th></tr></thead>
         <tbody id="cart-lines"></tbody>
         <tfoot>
-          <tr><td colspan="2">Subtotal (excl. VAT)</td><td class="num" id="subtotal" colspan="3">0,00 zł</td><td></td></tr>
-          <tr><td colspan="2">VAT</td><td class="num" id="vat-total" colspan="3">0,00 zł</td><td></td></tr>
-          <tr><td colspan="2">Total (incl. VAT)</td><td class="num" id="total" colspan="3">0,00 zł</td><td></td></tr>
+          <tr><td colspan="2">Subtotal (excl. VAT)</td><td class="num" id="subtotal" colspan="3"></td><td></td></tr>
+          <tr><td colspan="2">VAT</td><td class="num" id="vat-total" colspan="3"></td><td></td></tr>
+          <tr><td colspan="2">Total (incl. VAT)</td><td class="num" id="total" colspan="3"></td><td></td></tr>
         </tfoot>
       </table>
-      <p><button id="checkout">Checkout</button> <button id="clear">Empty cart</button></p>
+      <p><button id="checkout">Checkout</button></p>
       <div id="paypal-buttons"></div>
       <p id="payment-status"></p>
     </section>
   </main>
 
   <script>
-    // All amounts come from the backend PricingService, already converted to PLN and including VAT.
-    const plnFormat = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' });
-    const formatPln = amount => plnFormat.format(amount);
+    // All amounts come from the backend PricingService, already converted to the currency of the storefront and
+    // including the VAT of its country. The backend lists the storefronts; this only adds how to show them.
+    const STOREFRONT_LABELS = {
+      NL: { name: 'Nederland', locale: 'nl-NL', vat: 'Dutch VAT' },
+      DE: { name: 'Deutschland', locale: 'de-DE', vat: 'German VAT' },
+      FR: { name: 'France', locale: 'fr-FR', vat: 'French VAT' },
+      PL: { name: 'Polska', locale: 'pl-PL', vat: 'Polish VAT' },
+      CH: { name: 'Schweiz', locale: 'de-CH', vat: 'Swiss VAT' },
+      GB: { name: 'United Kingdom', locale: 'en-GB', vat: 'UK VAT' }
+    };
+    const DEFAULT_COUNTRY = 'PL';
+    const storefrontSelect = document.getElementById('storefront');
+    let storefront = { country: DEFAULT_COUNTRY, currency: 'PLN' };
+    let moneyFormat;
+    const formatMoney = amount => moneyFormat.format(amount);
     const errorEl = document.getElementById('error');
+
+    function rememberedCountry() {
+      try { return localStorage.getItem('eurocart.storefront') || DEFAULT_COUNTRY; } catch { return DEFAULT_COUNTRY; }
+    }
+
+    function rememberCountry(country) {
+      try { localStorage.setItem('eurocart.storefront', country); } catch { /* not remembered, still works */ }
+    }
+
+    function useStorefront(next) {
+      storefront = next;
+      const label = STOREFRONT_LABELS[next.country];
+      moneyFormat = new Intl.NumberFormat(label.locale, { style: 'currency', currency: next.currency });
+      document.getElementById('price-note').textContent =
+          `Prices in ${next.currency}, including ${label.vat}, excluding shipping.`;
+    }
 
     async function api(path, options) {
       errorEl.textContent = '';
@@ -79,7 +113,7 @@
           row.insertCell().textContent = p.name;
           row.insertCell().innerHTML = `<span class="muted">${p.countryOfOrigin}</span>`;
           const price = row.insertCell(); price.className = 'num';
-          price.textContent = formatPln(prices[p.id].gross);
+          price.textContent = formatMoney(prices[p.id].gross);
           const action = row.insertCell(); action.className = 'num';
           const button = document.createElement('button');
           button.textContent = 'Add';
@@ -98,22 +132,23 @@
         row.insertCell().textContent = line.product.name;
         const qty = row.insertCell(); qty.className = 'num'; qty.textContent = line.quantity;
         const { vatPercent, net, vat, gross } = line.price;
-        const excl = row.insertCell(); excl.className = 'num'; excl.textContent = formatPln(net);
-        const vatCell = row.insertCell(); vatCell.className = 'num'; vatCell.textContent = `${formatPln(vat)} (${vatPercent}%)`;
-        const incl = row.insertCell(); incl.className = 'num'; incl.textContent = formatPln(gross);
+        const excl = row.insertCell(); excl.className = 'num'; excl.textContent = formatMoney(net);
+        const vatCell = row.insertCell(); vatCell.className = 'num'; vatCell.textContent = `${formatMoney(vat)} (${vatPercent}%)`;
+        const incl = row.insertCell(); incl.className = 'num'; incl.textContent = formatMoney(gross);
         const action = row.insertCell(); action.className = 'num';
         const button = document.createElement('button');
         button.textContent = 'Remove';
         button.onclick = () => removeFromCart(line.product.id);
         action.appendChild(button);
       }
-      document.getElementById('subtotal').textContent = formatPln(cart.net);
-      document.getElementById('vat-total').textContent = formatPln(cart.vat);
-      document.getElementById('total').textContent = formatPln(cart.gross);
+      document.getElementById('subtotal').textContent = formatMoney(cart.net);
+      document.getElementById('vat-total').textContent = formatMoney(cart.vat);
+      document.getElementById('total').textContent = formatMoney(cart.gross);
     }
 
-    // The cart endpoints change the cart; the priced cart (PLN, VAT) is always read from the pricing endpoint.
-    const refreshCart = async () => renderCart(await api('/api/pricing/cart'));
+    // The cart endpoints change the cart; the priced cart is always read from the pricing endpoint of the storefront.
+    const pricingPath = path => `/api/pricing/${path}?country=${storefront.country}`;
+    const refreshCart = async () => renderCart(await api(pricingPath('cart')));
 
     async function addToCart(productId) {
       await api('/api/cart/items', { method: 'POST', body: JSON.stringify({ productId, quantity: 1 }) });
@@ -125,31 +160,44 @@
       await refreshCart();
     }
 
-    document.getElementById('clear').onclick = async () => {
-      await api('/api/cart', { method: 'DELETE' });
-      await refreshCart();
-    };
-
     // First form of payment: PayPal Smart Buttons in the PayPal sandbox (client-id "sb" is PayPal's public test id).
     // Replace it with our own sandbox/live client id before going live.
-    const PAYPAL_SDK = 'https://www.paypal.com/sdk/js?client-id=sb&currency=PLN&intent=capture';
+    // The SDK is loaded for one currency, so switching to a storefront with another currency reloads it.
+    const paypalSdk = currency => `https://www.paypal.com/sdk/js?client-id=sb&currency=${currency}&intent=capture`;
     const statusEl = document.getElementById('payment-status');
     let paypalButtonsRendered = false;
+    let paypalScript = null;
+    let paypalCurrency = null;
 
     function loadPaypalSdk() {
-      if (window.paypal) return Promise.resolve();
+      if (window.paypal && paypalCurrency === storefront.currency) return Promise.resolve();
+      unloadPaypalSdk();
+      paypalCurrency = storefront.currency;
       return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = PAYPAL_SDK;
-        script.onload = resolve;
-        script.onerror = () => reject(new Error('Could not load PayPal'));
-        document.head.appendChild(script);
+        paypalScript = document.createElement('script');
+        paypalScript.src = paypalSdk(paypalCurrency);
+        paypalScript.onload = resolve;
+        paypalScript.onerror = () => reject(new Error('Could not load PayPal'));
+        document.head.appendChild(paypalScript);
       });
+    }
+
+    function unloadPaypalSdk() {
+      if (paypalScript) paypalScript.remove();
+      paypalScript = null;
+      paypalCurrency = null;
+      delete window.paypal;
+      resetPaypalButtons();
+    }
+
+    function resetPaypalButtons() {
+      document.getElementById('paypal-buttons').innerHTML = '';
+      paypalButtonsRendered = false;
     }
 
     document.getElementById('checkout').onclick = async () => {
       statusEl.textContent = '';
-      const cart = await api('/api/pricing/cart');
+      const cart = await api(pricingPath('cart'));
       if (cart.lines.length === 0) {
         errorEl.textContent = 'Your cart is empty.';
         return;
@@ -165,9 +213,9 @@
       paypal.Buttons({
         // The amount is read from the server's priced cart (incl. VAT) at the moment the buyer clicks.
         createOrder: async (data, actions) => {
-          const current = await api('/api/pricing/cart');
+          const current = await api(pricingPath('cart'));
           const value = current.gross.toFixed(2);
-          return actions.order.create({ purchase_units: [{ amount: { currency_code: 'PLN', value } }] });
+          return actions.order.create({ purchase_units: [{ amount: { currency_code: current.currency, value } }] });
         },
         onApprove: async (data, actions) => {
           const order = await actions.order.capture();
@@ -179,9 +227,31 @@
       }).render('#paypal-buttons');
     };
 
-    Promise.all([api('/api/products'), api('/api/pricing/products')])
-      .then(([products, prices]) => renderProducts(products, prices));
-    refreshCart();
+    let products = [];
+    let storefronts = [];
+
+    async function showStorefront(country) {
+      useStorefront(storefronts.find(s => s.country === country) || storefronts.find(s => s.country === DEFAULT_COUNTRY));
+      storefrontSelect.value = storefront.country;
+      rememberCountry(storefront.country);
+      statusEl.textContent = '';
+      if (paypalCurrency !== storefront.currency) resetPaypalButtons();
+      renderProducts(products, await api(pricingPath('products')));
+      await refreshCart();
+    }
+
+    storefrontSelect.onchange = () => showStorefront(storefrontSelect.value);
+
+    Promise.all([api('/api/products'), api('/api/pricing/storefronts')])
+      .then(([allProducts, allStorefronts]) => {
+        products = allProducts;
+        storefronts = allStorefronts;
+        for (const s of storefronts) {
+          const label = STOREFRONT_LABELS[s.country];
+          storefrontSelect.add(new Option(`${label ? label.name : s.country} (${s.currency})`, s.country));
+        }
+        return showStorefront(rememberedCountry());
+      });
   </script>
 </body>
 </html>
