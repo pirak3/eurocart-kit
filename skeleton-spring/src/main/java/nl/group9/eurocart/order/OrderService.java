@@ -1,6 +1,8 @@
 package nl.group9.eurocart.order;
 
 import java.time.Clock;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -67,6 +69,13 @@ public class OrderService {
 		orders.save(paid);
 		cart.clear();
 		return paid;
+	}
+
+	/** All saved orders, newest first. */
+	public List<Order> all() {
+		return orders.findAll().stream()
+				.sorted(Comparator.comparing(Order::createdAt).reversed())
+				.toList();
 	}
 
 	public Order get(String id) {
