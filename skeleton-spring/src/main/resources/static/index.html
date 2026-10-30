@@ -94,7 +94,7 @@
         const total = row.insertCell(); total.className = 'num'; total.textContent = pln(line.lineTotal);
         const action = row.insertCell(); action.className = 'num';
         const button = document.createElement('button');
-        button.textContent = 'Checkout';
+        button.textContent = 'Remove';
         button.onclick = () => removeFromCart(line.product.id);
         action.appendChild(button);
       }
