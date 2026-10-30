@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EuroCart – Finance</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #f6f6f6; color: #222; }
+    h1 { margin: 0 0 .25rem; }
+    h2 { font-size: 1.1rem; margin: 0 0 .5rem; }
+    section { background: #fff; border-radius: 8px; padding: 1rem; margin-top: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.1); overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: .3rem .5rem; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
+    td.num, th.num { text-align: right; }
+    th { font-size: .8rem; text-transform: uppercase; color: #666; }
+    tr.detail td { background: #fafafa; white-space: normal; }
+    tr.detail table td, tr.detail table th { border-bottom: 1px solid #e5e5e5; }
+    button { cursor: pointer; border: 1px solid #999; background: #fafafa; border-radius: 4px; padding: .1rem .5rem; }
+    .muted { color: #888; font-size: .85rem; }
+    .status { border-radius: 999px; padding: .05rem .5rem; font-size: .75rem; font-weight: bold; }
+    .PAID { background: #d1f0d9; color: #145a2a; }
+    .PENDING { background: #fff3cd; color: #664d03; }
+    #error { color: #b00; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <h1>Finance: orders</h1>
+  <p class="muted">Amounts are in the currency the customer was charged in. The EUR column converts the gross amount back with the exchange rate stored on the order. <a href="/">Back to the shop</a></p>
+  <p id="error"></p>
+
+  <section>
+    <h2>Paid orders, totals per currency</h2>
+    <table>
+      <thead><tr><th>Currency</th><th class="num">Orders</th><th class="num">Net (excl. VAT)</th><th class="num">VAT</th><th class="num">Gross (incl. VAT)</th><th class="num">Gross in EUR</th></tr></thead>
+      <tbody id="totals"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>All orders</h2>
+    <table>
+      <thead><tr>
+        <th>Created</th><th>Order</th><th>Status</th><th>Email</th><th class="num">Rate (EUR per unit)</th>
+        <th class="num">Net</th><th class="num">of which shipping</th><th class="num">VAT</th><th class="num">Gross</th><th class="num">Gross in EUR</th><th></th>
+      </tr></thead>
+      <tbody id="orders"></tbody>
+    </table>
+    <p class="muted" id="empty" hidden>No orders yet.</p>
+  </section>
+
+  <script>
+    const errorEl = document.getElementById('error');
+    const money = (amount, currency) =>
+      amount == null ? 'n/a' : new Intl.NumberFormat('en', { style: 'currency', currency }).format(amount);
+    const dateTime = iso => iso ? new Date(iso).toLocaleString('en-GB') : '';
+
+    function cell(row, text, className) {
+      const td = row.insertCell();
+      td.textContent = text;
+      if (className) td.className = className;
+      return td;
+    }
+
+    function renderTotals(totals) {
+      const tbody = document.getElementById('totals');
+      tbody.innerHTML = '';
+      if (totals.length === 0) {
+        cell(tbody.insertRow(), 'No paid orders yet.').colSpan = 6;
+        return;
+      }
+      for (const t of totals) {
+        const row = tbody.insertRow();
+        cell(row, t.currency);
+        cell(row, t.orders, 'num');
+        cell(row, money(t.net, t.currency), 'num');
+        cell(row, money(t.vat, t.currency), 'num');
+        cell(row, money(t.gross, t.currency), 'num');
+        cell(row, money(t.grossEur, 'EUR'), 'num');
+      }
+    }
+
+    function renderLines(order) {
+      const table = document.createElement('table');
+      table.innerHTML = '<thead><tr><th>Product</th><th>Category</th><th class="num">Qty</th><th class="num">VAT %</th>'
+        + '<th class="num">Net</th><th class="num">VAT</th><th class="num">Gross</th></tr></thead>';
+      const body = table.createTBody();
+      for (const line of order.lines) {
+        const row = body.insertRow();
+        cell(row, `${line.productId} ${line.name}`);
+        cell(row, line.category);
+        cell(row, line.quantity, 'num');
+        cell(row, `${line.vatPercent}%`, 'num');
+        cell(row, money(line.net, order.currency), 'num');
+        cell(row, money(line.vat, order.currency), 'num');
+        cell(row, money(line.gross, order.currency), 'num');
+      }
+      if (order.paidAt) {
+        const note = document.createElement('p');
+        note.className = 'muted';
+        note.textContent = `Paid ${dateTime(order.paidAt)}`;
+        const wrapper = document.createElement('div');
+        wrapper.append(table, note);
+        return wrapper;
+      }
+      return table;
+    }
+
+    function renderOrders(orders) {
+      const tbody = document.getElementById('orders');
+      tbody.innerHTML = '';
+      document.getElementById('empty').hidden = orders.length > 0;
+      for (const order of orders) {
+        const row = tbody.insertRow();
+        cell(row, dateTime(order.createdAt));
+        cell(row, order.id.slice(0, 8)).title = order.id;
+        const status = cell(row, '');
+        const badge = document.createElement('span');
+        badge.className = `status ${order.status}`;
+        badge.textContent = order.status;
+        status.appendChild(badge);
+        cell(row, order.email);
+        cell(row, order.eurPerUnit ?? 'n/a', 'num');
+        cell(row, money(order.net, order.currency), 'num');
+        cell(row, money(order.shippingNet, order.currency), 'num');
+        cell(row, money(order.vat, order.currency), 'num');
+        cell(row, money(order.gross, order.currency), 'num');
+        cell(row, money(order.grossEur, 'EUR'), 'num');
+
+        const detail = tbody.insertRow();
+        detail.className = 'detail';
+        detail.hidden = true;
+        const detailCell = detail.insertCell();
+        detailCell.colSpan = 11;
+        detailCell.appendChild(renderLines(order));
+
+        const toggle = document.createElement('button');
+        toggle.textContent = 'Lines';
+        toggle.onclick = () => { detail.hidden = !detail.hidden; };
+        row.insertCell().appendChild(toggle);
+      }
+    }
+
+    async function load() {
+      const response = await fetch('/api/finance/orders');
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        errorEl.textContent = (body && body.detail) || `${response.status} ${response.statusText}`;
+        return;
+      }
+      renderTotals(body.paidTotals);
+      renderOrders(body.orders);
+    }
+
+    load();
+  </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 package nl.group9.eurocart.order;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface OrderRepository {
@@ -8,5 +9,8 @@ public interface OrderRepository {
 	void save(Order order);
 
 	Optional<Order> find(String id);
+
+	/** All saved orders, in no particular order. */
+	List<Order> findAll();
 
 }

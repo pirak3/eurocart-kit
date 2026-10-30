@@ -5,8 +5,10 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
@@ -53,6 +55,22 @@ public class FileOrderRepository implements OrderRepository {
 			return Optional.empty();
 		}
 		return Optional.of(objectMapper.readValue(file.toFile(), Order.class));
+	}
+
+	@Override
+	public synchronized List<Order> findAll() {
+		if (!Files.isDirectory(directory)) {
+			return List.of();
+		}
+		try (Stream<Path> files = Files.list(directory)) {
+			return files
+					.filter(file -> file.getFileName().toString().endsWith(".json"))
+					.map(file -> objectMapper.readValue(file.toFile(), Order.class))
+					.toList();
+		}
+		catch (IOException ex) {
+			throw new UncheckedIOException("Could not list orders", ex);
+		}
 	}
 
 	/** Only well-formed UUIDs map to a file, so an id can never point outside the directory. */
