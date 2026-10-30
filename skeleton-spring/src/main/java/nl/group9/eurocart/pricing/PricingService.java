@@ -59,9 +59,14 @@ public class PricingService {
 	public PricedCart price(CartView cart, Country country) {
 		List<PricedLine> lines = cart.lines().stream().map(line -> price(line, country)).toList();
 		boolean physical = cart.lines().stream().anyMatch(line -> line.product().category() != Category.EBOOK);
-		Price shipping = physical ? price(SHIPPING_EUR, SHIPPING_VAT_PERCENT.get(country), country) : null;
+		Price shipping = physical ? shipping(country) : null;
 		return new PricedCart(country.currency(), eurPerUnit(country), lines, shipping,
 				sum(lines, shipping, Price::net), sum(lines, shipping, Price::vat), sum(lines, shipping, Price::gross));
+	}
+
+	/** The flat shipping fee of an order with physical products in the storefront of {@code country}. */
+	public Price shipping(Country country) {
+		return price(SHIPPING_EUR, SHIPPING_VAT_PERCENT.get(country), country);
 	}
 
 	/** Prices {@code euros} (EUR, excl. VAT) of {@code product} in the storefront of {@code country}. */

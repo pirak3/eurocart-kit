@@ -83,6 +83,18 @@ class PricingApiTest {
 	}
 
 	@Test
+	void pricesTheShippingFeeForTheRequestedStorefront() throws Exception {
+		mockMvc.perform(get("/api/pricing/shipping").param("country", "PL"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.net").value(21.74))
+				.andExpect(jsonPath("$.gross").value(26.74));
+		mockMvc.perform(get("/api/pricing/shipping").param("country", "NL"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.vatPercent").value(21))
+				.andExpect(jsonPath("$.gross").value(6.05));
+	}
+
+	@Test
 	void rejectsAnUnknownStorefront() throws Exception {
 		mockMvc.perform(get("/api/pricing/cart").param("country", "XX"))
 				.andExpect(status().isBadRequest());

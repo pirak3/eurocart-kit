@@ -38,6 +38,11 @@ public class PricingController {
 		return pricing.productPrices(country);
 	}
 
+	@GetMapping("/shipping")
+	public Price shipping(@RequestParam(defaultValue = "PL") Country country) {
+		return pricing.shipping(country);
+	}
+
 	@GetMapping("/cart")
 	public PricedCart cart(@RequestParam(defaultValue = "PL") Country country) {
 		return pricing.price(cart.view(), country);
