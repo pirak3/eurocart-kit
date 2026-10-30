@@ -35,13 +35,16 @@ public class PricingService {
 	/** Flat shipping fee per order with physical products, in EUR excl. VAT. */
 	static final BigDecimal SHIPPING_EUR = new BigDecimal("5.00");
 
-	/** ASSUMPTION: shipping is taxed at the standard rate of the country; to be confirmed by compliance. */
+	/**
+	 * VAT percentage on shipping per country: the high (standard) rate everywhere, except Switzerland, which
+	 * uses its low rate. To be confirmed by compliance for the countries that are not live yet.
+	 */
 	static final Map<Country, BigDecimal> SHIPPING_VAT_PERCENT = Map.of(
 			Country.NL, new BigDecimal("21"),
 			Country.DE, new BigDecimal("19"),
 			Country.FR, new BigDecimal("20"),
 			Country.PL, new BigDecimal("23"),
-			Country.CH, new BigDecimal("8.1"),
+			Country.CH, new BigDecimal("2.6"),
 			Country.GB, new BigDecimal("20"));
 
 	private final ProductCatalogue catalogue;

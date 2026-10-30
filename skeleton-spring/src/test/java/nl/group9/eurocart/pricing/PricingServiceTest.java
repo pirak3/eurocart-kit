@@ -100,6 +100,15 @@ class PricingServiceTest {
 		assertThat(priced.gross()).isEqualTo(new BigDecimal("4948.58"));
 	}
 
+	@ParameterizedTest
+	@CsvSource({"NL, 21", "DE, 19", "FR, 20", "PL, 23", "GB, 20", "CH, 2.6"})
+	void shippingIsTaxedAtTheHighRateExceptInSwitzerlandWhichUsesItsLowRate(Country country, String vatPercent) {
+		CartView cart = new CartView(List.of(CartLine.of(catalogue.find("BOK-001").orElseThrow(), 1)),
+				new BigDecimal("12.50"));
+
+		assertThat(pricing.price(cart, country).shipping().vatPercent()).isEqualByComparingTo(vatPercent);
+	}
+
 	@Test
 	void shippingIsChargedOncePerOrderNotPerProduct() {
 		Product book = product("T-2", Category.BOOK, "12.50", "5");
