@@ -135,6 +135,30 @@ class PricingServiceTest {
 		assertThat(britishShipping.vat()).isEqualTo(new BigDecimal("0.83"));
 	}
 
+	@ParameterizedTest
+	@CsvSource({
+			"NL, EUR, 9,   8.99, 0.81, 9.80",
+			"DE, EUR, 7,   8.99, 0.63, 9.62",
+			"FR, EUR, 5.5, 8.99, 0.49, 9.48",
+			"PL, PLN, 5,  39.09, 1.95, 41.04",
+			"CH, CHF, 2.6, 8.25, 0.21, 8.46",
+			"GB, GBP, 0,   7.49, 0.00, 7.49"
+	})
+	void ebookIsTaxedWithTheVatOfTheCountryTheCustomerOrdersIn(
+			Country country, String currency, String vatPercent, String net, String vat, String gross) {
+		CartView cart = new CartView(List.of(CartLine.of(catalogue.find("EBK-001").orElseThrow(), 1)),
+				new BigDecimal("8.99"));
+
+		PricedCart priced = pricing.price(cart, country);
+
+		assertThat(priced.shipping()).isNull();
+		assertThat(priced.currency()).isEqualTo(currency);
+		assertThat(priced.lines().get(0).price().vatPercent()).isEqualByComparingTo(vatPercent);
+		assertThat(priced.net()).isEqualTo(new BigDecimal(net));
+		assertThat(priced.vat()).isEqualTo(new BigDecimal(vat));
+		assertThat(priced.gross()).isEqualTo(new BigDecimal(gross));
+	}
+
 	@Test
 	void digitalOnlyCartHasNoShipping() {
 		Product ebook = product("T-3", Category.EBOOK, "10.00", "5");
