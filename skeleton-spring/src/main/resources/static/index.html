@@ -38,7 +38,7 @@
         <tbody id="cart-lines"></tbody>
         <tfoot><tr><td>Subtotal (excl. VAT)</td><td></td><td class="num" id="subtotal">0,00 zł</td><td></td></tr></tfoot>
       </table>
-      <p><button id="clear">Empty cart</button></p>
+      <p><button id="clear">Checkout</button></p>
     </section>
   </main>
 
@@ -94,7 +94,7 @@
         const total = row.insertCell(); total.className = 'num'; total.textContent = pln(line.lineTotal);
         const action = row.insertCell(); action.className = 'num';
         const button = document.createElement('button');
-        button.textContent = 'Remove';
+        button.textContent = 'Checkout';
         button.onclick = () => removeFromCart(line.product.id);
         action.appendChild(button);
       }
