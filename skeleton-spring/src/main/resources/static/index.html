@@ -28,7 +28,7 @@
   <main>
     <section>
       <h2>Products</h2>
-      <p class="muted">Prices in EUR, excluding VAT and shipping.</p>
+      <p class="muted">Prices in PLN (1 EUR = 4.3938 PLN), excluding VAT and shipping.</p>
       <div id="products"></div>
     </section>
     <section>
@@ -36,14 +36,17 @@
       <table>
         <thead><tr><th>Product</th><th class="num">Qty</th><th class="num">Line total</th><th></th></tr></thead>
         <tbody id="cart-lines"></tbody>
-        <tfoot><tr><td>Subtotal (excl. VAT)</td><td></td><td class="num" id="subtotal">€ 0,00</td><td></td></tr></tfoot>
+        <tfoot><tr><td>Subtotal (excl. VAT)</td><td></td><td class="num" id="subtotal">0,00 zł</td><td></td></tr></tfoot>
       </table>
       <p><button id="clear">Empty cart</button></p>
     </section>
   </main>
 
   <script>
-    const eur = new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' });
+    // Catalogue prices are in EUR; shown in PLN at a fixed rate (ECB reference rate, 2026-10-29).
+    const EUR_TO_PLN = 4.3938;
+    const plnFormat = new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' });
+    const pln = euros => plnFormat.format(euros * EUR_TO_PLN);
     const errorEl = document.getElementById('error');
 
     async function api(path, options) {
@@ -70,7 +73,7 @@
           const row = table.insertRow();
           row.insertCell().textContent = p.name;
           row.insertCell().innerHTML = `<span class="muted">${p.countryOfOrigin}</span>`;
-          const price = row.insertCell(); price.className = 'num'; price.textContent = eur.format(p.price);
+          const price = row.insertCell(); price.className = 'num'; price.textContent = pln(p.price);
           const action = row.insertCell(); action.className = 'num';
           const button = document.createElement('button');
           button.textContent = 'Add';
@@ -88,14 +91,14 @@
         const row = tbody.insertRow();
         row.insertCell().textContent = line.product.name;
         const qty = row.insertCell(); qty.className = 'num'; qty.textContent = line.quantity;
-        const total = row.insertCell(); total.className = 'num'; total.textContent = eur.format(line.lineTotal);
+        const total = row.insertCell(); total.className = 'num'; total.textContent = pln(line.lineTotal);
         const action = row.insertCell(); action.className = 'num';
         const button = document.createElement('button');
         button.textContent = 'Remove';
         button.onclick = () => removeFromCart(line.product.id);
         action.appendChild(button);
       }
-      document.getElementById('subtotal').textContent = eur.format(cart.subtotal);
+      document.getElementById('subtotal').textContent = pln(cart.subtotal);
     }
 
     async function addToCart(productId) {
