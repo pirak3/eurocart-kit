@@ -35,9 +35,9 @@ class PricingApiTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(51))
 				.andExpect(jsonPath("$['LAP-001'].vatPercent").value(23))
-				.andExpect(jsonPath("$['LAP-001'].net").value(3950.03))
-				.andExpect(jsonPath("$['LAP-001'].vat").value(908.51))
-				.andExpect(jsonPath("$['LAP-001'].gross").value(4858.54));
+				.andExpect(jsonPath("$['LAP-001'].net").value(3908.70))
+				.andExpect(jsonPath("$['LAP-001'].vat").value(899.00))
+				.andExpect(jsonPath("$['LAP-001'].gross").value(4807.70));
 	}
 
 	@Test
@@ -49,10 +49,12 @@ class PricingApiTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.currency").value("PLN"))
 				.andExpect(jsonPath("$.lines.length()").value(2))
-				.andExpect(jsonPath("$.lines[1].price.gross").value(115.34))
-				.andExpect(jsonPath("$.net").value(4059.88))
-				.andExpect(jsonPath("$.vat").value(914.00))
-				.andExpect(jsonPath("$.gross").value(4973.88));
+				.andExpect(jsonPath("$.lines[1].price.gross").value(114.14))
+				.andExpect(jsonPath("$.shipping.net").value(21.74))
+				.andExpect(jsonPath("$.shipping.gross").value(26.74))
+				.andExpect(jsonPath("$.net").value(4039.14))
+				.andExpect(jsonPath("$.vat").value(909.44))
+				.andExpect(jsonPath("$.gross").value(4948.58));
 	}
 
 	@Test
@@ -75,7 +77,9 @@ class PricingApiTest {
 		mockMvc.perform(get("/api/pricing/cart").param("country", "NL"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.currency").value("EUR"))
-				.andExpect(jsonPath("$.gross").value(1087.79));
+				.andExpect(jsonPath("$.eurPerUnit").value(1))
+				.andExpect(jsonPath("$.shipping.gross").value(6.05))
+				.andExpect(jsonPath("$.gross").value(1093.84));
 	}
 
 	@Test

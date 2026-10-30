@@ -27,11 +27,11 @@ class PricingServiceTest {
 
 	@ParameterizedTest
 	@CsvSource({
-			"LAP-001, 23, 439.38, 101.06, 540.44",
-			"BOK-001,  5, 439.38,  21.97, 461.35",
-			"EBK-001,  5, 439.38,  21.97, 461.35",
-			"FOD-001,  5, 439.38,  21.97, 461.35",
-			"MED-001,  8, 439.38,  35.15, 474.53"
+			"LAP-001, 23, 434.78, 100.00, 534.78",
+			"BOK-001,  5, 434.78,  21.74, 456.52",
+			"EBK-001,  5, 434.78,  21.74, 456.52",
+			"FOD-001,  5, 434.78,  21.74, 456.52",
+			"MED-001,  8, 434.78,  34.78, 469.56"
 	})
 	void pricesOneHundredEuroWithThePolishVatOfTheProduct(String productId, String vatPercent, String net, String vat, String gross) {
 		Price price = pricing.price(new BigDecimal("100.00"), catalogue.find(productId).orElseThrow(), Country.PL);
@@ -45,9 +45,9 @@ class PricingServiceTest {
 	@ParameterizedTest
 	@CsvSource({
 			"LAP-001, NL,  21,  899.00, 188.79, 1087.79",
-			"LAP-001, CH, 8.1,  836.07,  67.72,  903.79",
-			"LAP-001, GB,  20,  782.13, 156.43,  938.56",
-			"BOK-001, GB,   0,   10.88,   0.00,   10.88"
+			"LAP-001, CH, 8.1,  824.77,  66.81,  891.58",
+			"LAP-001, GB,  20,  749.17, 149.83,  899.00",
+			"BOK-001, GB,   0,   10.42,   0.00,   10.42"
 	})
 	void pricesInTheCurrencyAndWithTheVatOfTheStorefront(String productId, Country country, String vatPercent,
 			String net, String vat, String gross) {
@@ -72,17 +72,17 @@ class PricingServiceTest {
 	}
 
 	@Test
-	void roundsNetHalfUp() {
-		// 25.00 EUR * 4.3938 = 109.8450 PLN
+	void roundsNetAndVatHalfUp() {
+		// 25.00 EUR / 0.23 = 108.6956... PLN, and 5% of 108.70 is exactly 5.435
 		Price price = pricing.price(new BigDecimal("25.00"), product("T-1", Category.BOOK, "12.50", "5"), Country.PL);
 
-		assertThat(price.net()).isEqualTo(new BigDecimal("109.85"));
-		assertThat(price.vat()).isEqualTo(new BigDecimal("5.49"));
-		assertThat(price.gross()).isEqualTo(new BigDecimal("115.34"));
+		assertThat(price.net()).isEqualTo(new BigDecimal("108.70"));
+		assertThat(price.vat()).isEqualTo(new BigDecimal("5.44"));
+		assertThat(price.gross()).isEqualTo(new BigDecimal("114.14"));
 	}
 
 	@Test
-	void cartTotalsAreTheSumOfTheRoundedLines() {
+	void cartTotalsAreTheSumOfTheRoundedLinesAndTheShipping() {
 		Product laptop = product("T-1", Category.LAPTOP, "899.00", "23");
 		Product book = product("T-2", Category.BOOK, "12.50", "5");
 		CartView cart = new CartView(List.of(CartLine.of(laptop, 1), CartLine.of(book, 2)), new BigDecimal("924.00"));
@@ -90,9 +90,50 @@ class PricingServiceTest {
 		PricedCart priced = pricing.price(cart, Country.PL);
 
 		assertThat(priced.currency()).isEqualTo("PLN");
-		assertThat(priced.net()).isEqualTo(new BigDecimal("4059.88"));
-		assertThat(priced.vat()).isEqualTo(new BigDecimal("914.00"));
-		assertThat(priced.gross()).isEqualTo(new BigDecimal("4973.88"));
+		assertThat(priced.eurPerUnit()).isEqualByComparingTo("0.23");
+		// shipping: 5.00 EUR / 0.23 = 21.74 PLN, plus 23% VAT of 5.00
+		assertThat(priced.shipping().net()).isEqualTo(new BigDecimal("21.74"));
+		assertThat(priced.shipping().vat()).isEqualTo(new BigDecimal("5.00"));
+		assertThat(priced.shipping().gross()).isEqualTo(new BigDecimal("26.74"));
+		assertThat(priced.net()).isEqualTo(new BigDecimal("4039.14"));
+		assertThat(priced.vat()).isEqualTo(new BigDecimal("909.44"));
+		assertThat(priced.gross()).isEqualTo(new BigDecimal("4948.58"));
+	}
+
+	@Test
+	void shippingIsChargedOncePerOrderNotPerProduct() {
+		Product book = product("T-2", Category.BOOK, "12.50", "5");
+
+		PricedCart one = pricing.price(new CartView(List.of(CartLine.of(book, 1)), new BigDecimal("12.50")), Country.PL);
+		PricedCart three = pricing.price(new CartView(List.of(CartLine.of(book, 3)), new BigDecimal("37.50")), Country.PL);
+
+		assertThat(three.shipping()).isEqualTo(one.shipping());
+	}
+
+	@Test
+	void shippingIsPricedInTheCurrencyAndAtTheStandardVatOfTheStorefront() {
+		CartView cart = new CartView(List.of(CartLine.of(catalogue.find("BOK-001").orElseThrow(), 1)),
+				new BigDecimal("12.50"));
+
+		Price germanShipping = pricing.price(cart, Country.DE).shipping();
+		Price britishShipping = pricing.price(cart, Country.GB).shipping();
+
+		assertThat(germanShipping.vatPercent()).isEqualByComparingTo("19");
+		assertThat(germanShipping.net()).isEqualTo(new BigDecimal("5.00"));
+		assertThat(germanShipping.vat()).isEqualTo(new BigDecimal("0.95"));
+		// 5.00 EUR / 1.20 = 4.17 GBP, plus 20% VAT
+		assertThat(britishShipping.net()).isEqualTo(new BigDecimal("4.17"));
+		assertThat(britishShipping.vat()).isEqualTo(new BigDecimal("0.83"));
+	}
+
+	@Test
+	void digitalOnlyCartHasNoShipping() {
+		Product ebook = product("T-3", Category.EBOOK, "10.00", "5");
+
+		PricedCart priced = pricing.price(new CartView(List.of(CartLine.of(ebook, 1)), new BigDecimal("10.00")), Country.PL);
+
+		assertThat(priced.shipping()).isNull();
+		assertThat(priced.gross()).isEqualTo(priced.lines().get(0).price().gross());
 	}
 
 	@Test
@@ -100,6 +141,7 @@ class PricingServiceTest {
 		PricedCart priced = pricing.price(new CartView(List.of(), BigDecimal.ZERO), Country.PL);
 
 		assertThat(priced.lines()).isEmpty();
+		assertThat(priced.shipping()).isNull();
 		assertThat(priced.gross()).isEqualByComparingTo("0");
 	}
 
