@@ -5,27 +5,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EuroCart – Finance</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; padding: 1rem; background: #f6f6f6; color: #222; }
-    h1 { margin: 0 0 .25rem; }
-    h2 { font-size: 1.1rem; margin: 0 0 .5rem; }
-    section { background: #fff; border-radius: 8px; padding: 1rem; margin-top: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.1); overflow-x: auto; }
+    /* Same look as the shop: colours of the Java logo, used as accents on a plain white page. */
+    :root {
+      --java-blue: #5382A1;
+      --java-blue-dark: #3E6482;
+      --java-blue-light: #EAF1F6;
+      --java-orange: #F89820;
+      --java-red: #E76F00;
+      --ink: #1F2D3A;
+    }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #fff; color: var(--ink); line-height: 1.45; }
+    header, main { max-width: 1280px; margin: 0 auto; padding: 0 1rem; }
+    /* The header background runs the full width of the window while its content stays in the column. */
+    header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem;
+      padding-block: 1.25rem; background: var(--java-blue-light); box-shadow: 0 0 0 100vmax var(--java-blue-light);
+      clip-path: inset(0 -100vmax); border-bottom: 2px solid var(--java-blue); }
+    h1 { margin: 0; font-size: 1.35rem; font-weight: 700; color: var(--java-blue-dark); }
+    h1 span { color: var(--java-orange); }
+    h1 small { font-size: 1rem; font-weight: 400; color: var(--java-blue-dark); margin-left: .5rem; }
+    header a { color: var(--java-blue-dark); font-weight: 600; text-decoration: none; }
+    header a:hover { text-decoration: underline; }
+    main { padding-block: 1.5rem; }
+    section { margin-top: 2rem; overflow-x: auto; }
+    h2 { margin: 0 0 .5rem; font-size: 1rem; font-weight: 600; }
     table { width: 100%; border-collapse: collapse; }
-    td, th { padding: .3rem .5rem; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
-    td.num, th.num { text-align: right; }
-    th { font-size: .8rem; text-transform: uppercase; color: #666; }
-    tr.detail td { background: #fafafa; white-space: normal; }
-    tr.detail table td, tr.detail table th { border-bottom: 1px solid #e5e5e5; }
-    button { cursor: pointer; border: 1px solid #999; background: #fafafa; border-radius: 4px; padding: .1rem .5rem; }
-    .muted { color: #888; font-size: .85rem; }
-    .status { border-radius: 999px; padding: .05rem .5rem; font-size: .75rem; font-weight: bold; }
-    .PAID { background: #d1f0d9; color: #145a2a; }
-    .PENDING { background: #fff3cd; color: #664d03; }
-    #error { color: #b00; min-height: 1.2em; }
+    td, th { padding: .45rem .5rem; text-align: left; border-bottom: 1px solid #F0F3F6; white-space: nowrap; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    th { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--java-blue);
+      border-bottom: 2px solid #E4EAF0; }
+    tr.detail td { background: #F7FAFC; white-space: normal; padding: .75rem 1rem; }
+    tr.detail table td, tr.detail table th { border-bottom: 1px solid #E4EAF0; }
+    button { cursor: pointer; font: inherit; font-weight: 600; border: 1px solid var(--java-blue); color: var(--java-blue-dark);
+      background: none; border-radius: 4px; padding: .1rem .6rem; }
+    button:hover { background: var(--java-blue); color: #fff; }
+    .muted { color: #6B7B88; font-size: .8rem; }
+    .status { border-radius: 999px; padding: .1rem .55rem; font-size: .7rem; font-weight: 600; letter-spacing: .04em; }
+    .PAID { background: #E3F2E7; color: #1E5B30; }
+    .PENDING { background: #FEF0DC; color: #8A4B00; }
+    #error { color: #B00020; }
+    #error:empty { display: none; }
   </style>
 </head>
 <body>
-  <h1>Finance: orders</h1>
-  <p class="muted">Amounts are in the currency the customer was charged in. The EUR column converts the gross amount back with the exchange rate stored on the order. <a href="/">Back to the shop</a></p>
+  <header>
+    <h1>EuroCart<span>.</span> <small>Finance</small></h1>
+    <a href="/">Back to the shop</a>
+  </header>
+  <main>
+  <p class="muted">Amounts are in the currency the customer was charged in. The EUR column converts the gross amount back with the exchange rate stored on the order.</p>
   <p id="error"></p>
 
   <section>
@@ -47,6 +74,8 @@
     </table>
     <p class="muted" id="empty" hidden>No orders yet.</p>
   </section>
+
+  </main>
 
   <script>
     const errorEl = document.getElementById('error');
