@@ -1,4 +1,15 @@
 [
+  { "id": "EBK-001", "name": "E-book: Het Diner", "category": "EBOOK", "price": 8.99, "countryOfOrigin": "NL" },
+  { "id": "EBK-002", "name": "E-book: De Ontdekking van de Hemel", "category": "EBOOK", "price": 14.99, "countryOfOrigin": "NL" },
+  { "id": "EBK-003", "name": "E-book: Der Vorleser", "category": "EBOOK", "price": 7.49, "countryOfOrigin": "NL" },
+  { "id": "EBK-004", "name": "E-book: Die Verwandlung", "category": "EBOOK", "price": 1.99, "countryOfOrigin": "NL" },
+  { "id": "EBK-005", "name": "E-book: Le Petit Prince", "category": "EBOOK", "price": 5.99, "countryOfOrigin": "NL" },
+  { "id": "EBK-006", "name": "E-book: Hamlet", "category": "EBOOK", "price": 4.99, "countryOfOrigin": "NL" },
+  { "id": "EBK-007", "name": "E-book: Solaris", "category": "EBOOK", "price": 9.49, "countryOfOrigin": "NL" },
+  { "id": "EBK-008", "name": "E-book: Pan Tadeusz", "category": "EBOOK", "price": 6.99, "countryOfOrigin": "NL" },
+  { "id": "EBK-009", "name": "E-book: Heidi", "category": "EBOOK", "price": 11.99, "countryOfOrigin": "NL" },
+  { "id": "EBK-010", "name": "E-book: Macbeth", "category": "EBOOK", "price": 0.99, "countryOfOrigin": "NL" },
+
   { "id": "LAP-001", "name": "Nimbus 14 Ultrabook (16 GB, 512 GB)", "category": "LAPTOP", "price": 899.00, "countryOfOrigin": "NL" },
   { "id": "LAP-002", "name": "Nimbus 16 Pro (32 GB, 1 TB)", "category": "LAPTOP", "price": 1649.00, "countryOfOrigin": "NL" },
   { "id": "LAP-003", "name": "Kraftwerk Enterprise D 14 Business", "category": "LAPTOP", "price": 1199.00, "countryOfOrigin": "DE" },
@@ -42,16 +53,5 @@
   { "id": "MED-007", "name": "Aspiryna 500 mg, 20 tabletek", "category": "MEDICINE", "price": 2.90, "countryOfOrigin": "PL" },
   { "id": "MED-008", "name": "Magnez + B6, 60 tabletek", "category": "MEDICINE", "price": 5.60, "countryOfOrigin": "PL" },
   { "id": "MED-009", "name": "Erste-Hilfe-Set Wandern", "category": "MEDICINE", "price": 24.95, "countryOfOrigin": "CH" },
-  { "id": "MED-010", "name": "Antihistamine tablets 10 mg, 30 pack", "category": "MEDICINE", "price": 4.25, "countryOfOrigin": "GB" },
-
-  { "id": "EBK-001", "name": "E-book: Het Diner", "category": "EBOOK", "price": 8.99, "countryOfOrigin": "NL" },
-  { "id": "EBK-002", "name": "E-book: De Ontdekking van de Hemel", "category": "EBOOK", "price": 14.99, "countryOfOrigin": "NL" },
-  { "id": "EBK-003", "name": "E-book: Der Vorleser", "category": "EBOOK", "price": 7.49, "countryOfOrigin": "NL" },
-  { "id": "EBK-004", "name": "E-book: Die Verwandlung", "category": "EBOOK", "price": 1.99, "countryOfOrigin": "NL" },
-  { "id": "EBK-005", "name": "E-book: Le Petit Prince", "category": "EBOOK", "price": 5.99, "countryOfOrigin": "NL" },
-  { "id": "EBK-006", "name": "E-book: Hamlet", "category": "EBOOK", "price": 4.99, "countryOfOrigin": "NL" },
-  { "id": "EBK-007", "name": "E-book: Solaris", "category": "EBOOK", "price": 9.49, "countryOfOrigin": "NL" },
-  { "id": "EBK-008", "name": "E-book: Pan Tadeusz", "category": "EBOOK", "price": 6.99, "countryOfOrigin": "NL" },
-  { "id": "EBK-009", "name": "E-book: Heidi", "category": "EBOOK", "price": 11.99, "countryOfOrigin": "NL" },
-  { "id": "EBK-010", "name": "E-book: Macbeth", "category": "EBOOK", "price": 0.99, "countryOfOrigin": "NL" }
+  { "id": "MED-010", "name": "Antihistamine tablets 10 mg, 30 pack", "category": "MEDICINE", "price": 4.25, "countryOfOrigin": "GB" }
 ]
