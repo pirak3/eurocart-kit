@@ -15,7 +15,7 @@
       --ink: #1F2D3A;
     }
     body { font-family: system-ui, sans-serif; margin: 0; background: #fff; color: var(--ink); line-height: 1.45; }
-    header, main { max-width: 1040px; margin: 0 auto; padding: 0 1rem; }
+    header, main { max-width: 1280px; margin: 0 auto; padding: 0 1rem; }
     /* The header background runs the full width of the window while its content stays in the column. */
     header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem;
       padding-block: 1.25rem; background: var(--java-blue-light); box-shadow: 0 0 0 100vmax var(--java-blue-light);
@@ -23,8 +23,26 @@
     h1 { margin: 0; font-size: 1.35rem; font-weight: 700; color: var(--java-blue-dark); }
     header .muted { color: var(--java-blue-dark); font-size: .85rem; }
     h1 span { color: var(--java-orange); }
-    main { display: grid; grid-template-columns: 3fr 2fr; gap: 3rem; padding-block: 1.5rem; }
-    @media (max-width: 800px) { main { grid-template-columns: 1fr; gap: 2rem; } }
+    /* Categories on the left, products in the centre, the cart on the right and in view while scrolling. */
+    main { display: grid; grid-template-columns: 11rem minmax(0, 1fr) 21rem; gap: 2.5rem; padding-block: 1.5rem; align-items: start; }
+    #cart { position: sticky; top: 1rem; padding: 1rem; border: 1px solid #E4EAF0; border-radius: 8px; }
+    @media (max-width: 960px) {
+      main { grid-template-columns: 1fr; gap: 1.5rem; }
+      #cart { position: static; }
+      #categories ul { display: flex; flex-wrap: wrap; gap: .4rem; }
+    }
+    #categories ul { list-style: none; margin: .5rem 0 0; padding: 0; }
+    #categories button { display: block; width: 100%; text-align: left; padding: .35rem .6rem; color: var(--ink); }
+    #categories button[aria-pressed="true"] { background: var(--java-blue); color: #fff; font-weight: 600; }
+    @media (max-width: 960px) { #categories button { width: auto; border: 1px solid #CBD6E0; } }
+    details.vat summary { cursor: pointer; font-size: .8rem; color: var(--java-blue); }
+    details.vat summary:hover { color: var(--java-blue-dark); }
+    details.vat table { margin-top: .4rem; font-size: .8rem; color: #4A5A68; }
+    details.vat th { font-weight: 600; text-align: right; padding: .15rem 0 .15rem .75rem; border-bottom: 1px solid #E4EAF0; }
+    details.vat th:first-child { text-align: left; padding-left: 0; }
+    details.vat td { padding: .15rem 0; border-bottom: 0; }
+    details.vat td + td { padding-left: .75rem; }
+    details.vat tr.sum td { border-top: 1px solid #E4EAF0; font-weight: 600; }
     h2 { margin: 0 0 .25rem; font-size: 1rem; font-weight: 600; }
     h3 { margin: 1.5rem 0 .25rem; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--java-blue); }
     table { width: 100%; border-collapse: collapse; }
@@ -52,7 +70,8 @@
     input:focus, select:focus { outline: 2px solid var(--java-orange); outline-offset: 0; border-color: transparent; }
     .row { display: grid; grid-template-columns: 2fr 1fr; gap: .5rem; }
     [hidden] { display: none !important; }
-    .flag { font-size: 2rem; line-height: 1; cursor: default; }
+    .flag { display: block; cursor: default; }
+    .flag svg { display: block; height: 1.75rem; width: auto; border-radius: 3px; box-shadow: 0 0 0 1px rgba(31,45,58,.2); }
   </style>
 </head>
 <body>
@@ -61,13 +80,17 @@
     <span id="flag" class="flag" role="img"></span>
   </header>
   <main>
+    <nav id="categories" aria-label="Categories">
+      <h2>Categories</h2>
+      <ul></ul>
+    </nav>
     <section>
-      <h2>Products</h2>
+      <h2 id="products-title">Products</h2>
       <!-- Legal: consumers see prices incl. VAT and the shipping costs; food names state the unit price basis. -->
       <p class="muted" id="price-note"></p>
       <div id="products"></div>
     </section>
-    <section>
+    <section id="cart">
       <h2>Cart</h2>
       <p id="error"></p>
       <p class="muted" id="cart-empty">Your cart is empty.</p>
@@ -77,7 +100,15 @@
         <table class="summary">
           <tr id="shipping-row"><td>Shipping</td><td class="num" id="shipping"></td></tr>
           <tr class="total"><td>Total</td><td class="num" id="total"></td></tr>
-          <tr><td class="muted" colspan="2" id="vat-note"></td></tr>
+          <tr><td colspan="2">
+            <details class="vat">
+              <summary id="vat-note"></summary>
+              <table>
+                <thead><tr><th>VAT rate</th><th>Excl. VAT</th><th>VAT</th></tr></thead>
+                <tbody id="vat-breakdown"></tbody>
+              </table>
+            </details>
+          </td></tr>
         </table>
         <button id="checkout" class="primary">Checkout</button>
       </div>
@@ -124,7 +155,19 @@
     };
     const DEFAULT_COUNTRY = 'PL';
     const flagEl = document.getElementById('flag');
-    const flagOf = country => String.fromCodePoint(...[...country].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+    // Flags as inline SVG: Windows shows flag emoji as the two letters of the country code.
+    const FLAGS = {
+      NL: '<svg viewBox="0 0 9 6"><path fill="#AE1C28" d="M0 0h9v2H0z"/><path fill="#fff" d="M0 2h9v2H0z"/><path fill="#21468B" d="M0 4h9v2H0z"/></svg>',
+      DE: '<svg viewBox="0 0 5 3"><path d="M0 0h5v1H0z"/><path fill="#D00" d="M0 1h5v1H0z"/><path fill="#FFCE00" d="M0 2h5v1H0z"/></svg>',
+      FR: '<svg viewBox="0 0 3 2"><path fill="#002654" d="M0 0h1v2H0z"/><path fill="#fff" d="M1 0h1v2H1z"/><path fill="#CE1126" d="M2 0h1v2H2z"/></svg>',
+      PL: '<svg viewBox="0 0 8 5"><path fill="#fff" d="M0 0h8v2.5H0z"/><path fill="#DC143C" d="M0 2.5h8V5H0z"/></svg>',
+      CH: '<svg viewBox="0 0 32 32"><path fill="#DA291C" d="M0 0h32v32H0z"/><path fill="#fff" d="M13 6h6v7h7v6h-7v7h-6v-7H6v-6h7z"/></svg>',
+      GB: '<svg viewBox="0 0 60 30"><clipPath id="gb-s"><path d="M0 0v30h60V0z"/></clipPath>'
+        + '<clipPath id="gb-t"><path d="M30 15h30v15zv15H0zH0V0zV0h30z"/></clipPath><g clip-path="url(#gb-s)">'
+        + '<path fill="#012169" d="M0 0v30h60V0z"/><path stroke="#fff" stroke-width="6" d="M0 0l60 30m0-30L0 30"/>'
+        + '<path stroke="#C8102E" stroke-width="4" clip-path="url(#gb-t)" d="M0 0l60 30m0-30L0 30"/>'
+        + '<path stroke="#fff" stroke-width="10" d="M30 0v30M0 15h60"/><path stroke="#C8102E" stroke-width="6" d="M30 0v30M0 15h60"/></g></svg>'
+    };
 
     // The storefront follows the visitor's IP address. ?country=DE forces one instead (handy locally, where there is
     // no public IP to locate); it is remembered for the rest of the session, also after the PayPal page.
@@ -167,14 +210,41 @@
       return body;
     }
 
-    function renderProducts(products, prices) {
-      const byCategory = Map.groupBy(products, p => p.category);
+    const CATEGORY_LABELS = { LAPTOP: 'Laptops', BOOK: 'Books', EBOOK: 'E-books', FOOD: 'Food', MEDICINE: 'Medicine' };
+    const categoryLabel = category => CATEGORY_LABELS[category] || category;
+    let selectedCategory = null; // null: all categories
+
+    function renderCategories(products) {
+      const list = document.querySelector('#categories ul');
+      list.innerHTML = '';
+      for (const category of [null, ...new Set(products.map(p => p.category))]) {
+        const button = document.createElement('button');
+        button.textContent = category ? categoryLabel(category) : 'All products';
+        button.setAttribute('aria-pressed', category === selectedCategory);
+        button.onclick = () => {
+          selectedCategory = category;
+          renderCategories(products);
+          renderProducts(products, prices);
+        };
+        list.appendChild(document.createElement('li')).appendChild(button);
+      }
+    }
+
+    let prices = {};
+
+    function renderProducts(products, productPrices) {
+      prices = productPrices;
+      const shown = products.filter(p => !selectedCategory || p.category === selectedCategory);
+      document.getElementById('products-title').textContent = selectedCategory ? categoryLabel(selectedCategory) : 'Products';
+      const byCategory = Map.groupBy(shown, p => p.category);
       const container = document.getElementById('products');
       container.innerHTML = '';
       for (const [category, items] of byCategory) {
-        const heading = document.createElement('h3');
-        heading.textContent = category;
-        container.appendChild(heading);
+        if (!selectedCategory) {
+          const heading = document.createElement('h3');
+          heading.textContent = categoryLabel(category);
+          container.appendChild(heading);
+        }
         const table = document.createElement('table');
         for (const p of items) {
           const row = table.insertRow();
@@ -213,7 +283,29 @@
       if (cart.shipping) document.getElementById('shipping').textContent = formatMoney(cart.shipping.gross);
       document.getElementById('total').textContent = formatMoney(cart.gross);
       document.getElementById('vat-note').textContent =
-          `Incl. ${formatMoney(cart.vat)} ${STOREFRONT_LABELS[storefront.country].vat}.`;
+          `Incl. ${formatMoney(cart.vat)} ${STOREFRONT_LABELS[storefront.country].vat}`;
+      renderVatBreakdown(cart);
+    }
+
+    // The VAT of the cart per rate, shipping included. The lines are already rounded, so the sums match the totals.
+    function renderVatBreakdown(cart) {
+      const prices = [...cart.lines.map(line => line.price), ...(cart.shipping ? [cart.shipping] : [])];
+      const byRate = Map.groupBy(prices, price => Number(price.vatPercent));
+      const tbody = document.getElementById('vat-breakdown');
+      tbody.innerHTML = '';
+      const addRow = (label, net, vat, className) => {
+        const row = tbody.insertRow();
+        if (className) row.className = className;
+        row.insertCell().textContent = label;
+        for (const amount of [net, vat]) {
+          const cell = row.insertCell(); cell.className = 'num'; cell.textContent = formatMoney(amount);
+        }
+      };
+      for (const [rate, ratePrices] of [...byRate].sort(([a], [b]) => b - a)) {
+        const sum = field => ratePrices.reduce((total, price) => total + price[field], 0);
+        addRow(`${rate}%`, sum('net'), sum('vat'));
+      }
+      addRow('Total', cart.net, cart.vat, 'sum');
     }
 
     // The cart endpoints change the cart; the priced cart is always read from the pricing endpoint of the storefront.
@@ -262,11 +354,9 @@
       location.href = `/paypal-simulator.html?order=${encodeURIComponent(order.id)}`;
     };
 
-    // Back from the simulated PayPal page.
+    // Back from the simulated PayPal page after cancelling; a paid order goes to order.html instead.
     const returned = new URLSearchParams(location.search);
-    if (returned.has('paid')) {
-      statusEl.textContent = `Payment completed. Order ${returned.get('paid')} is paid. Thank you!`;
-    } else if (returned.has('cancelled')) {
+    if (returned.has('cancelled')) {
       statusEl.textContent = `Payment cancelled. Order ${returned.get('cancelled')} is saved but not paid; your cart is unchanged.`;
     }
     if (returned.size) history.replaceState(null, '', location.pathname);
@@ -277,7 +367,7 @@
     async function showStorefront(country) {
       useStorefront(storefronts.find(s => s.country === country) || storefronts.find(s => s.country === DEFAULT_COUNTRY));
       const label = STOREFRONT_LABELS[storefront.country];
-      flagEl.textContent = flagOf(storefront.country);
+      flagEl.innerHTML = FLAGS[storefront.country];
       flagEl.title = flagEl.ariaLabel = `${label.name} (${storefront.currency})`;
       const [prices, shipping] = await Promise.all([api(pricingPath('products')), api(pricingPath('shipping'))]);
       renderPriceNote(shipping);
@@ -289,6 +379,7 @@
       .then(async ([allProducts, allStorefronts]) => {
         products = allProducts;
         storefronts = allStorefronts;
+        renderCategories(products);
         const country = forcedCountry || (await api('/api/geo/country')).country;
         return showStorefront(country);
       });

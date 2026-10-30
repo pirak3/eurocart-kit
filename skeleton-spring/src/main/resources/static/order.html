@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EuroCart – Your order</title>
+  <style>
+    /* Same look as the shop: colours of the Java logo, used as accents on a plain white page. */
+    :root {
+      --java-blue: #5382A1;
+      --java-blue-dark: #3E6482;
+      --java-blue-light: #EAF1F6;
+      --java-orange: #F89820;
+      --java-red: #E76F00;
+      --ink: #1F2D3A;
+    }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #fff; color: var(--ink); line-height: 1.45; }
+    header, main { max-width: 640px; margin: 0 auto; padding: 0 1rem; }
+    /* The header background runs the full width of the window while its content stays in the column. */
+    header { padding-block: 1.25rem; background: var(--java-blue-light); box-shadow: 0 0 0 100vmax var(--java-blue-light);
+      clip-path: inset(0 -100vmax); border-bottom: 2px solid var(--java-blue); }
+    h1 { margin: 0; font-size: 1.35rem; font-weight: 700; color: var(--java-blue-dark); }
+    h1 span { color: var(--java-orange); }
+    main { padding-block: 2rem; }
+    h2 { margin: 0 0 .25rem; font-size: 1.4rem; font-weight: 600; }
+    h3 { margin: 2rem 0 .5rem; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--java-blue); }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: .45rem 0; border-bottom: 1px solid #F0F3F6; vertical-align: baseline; }
+    td + td { padding-left: .75rem; }
+    td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .summary td { border: 0; padding: .2rem 0; }
+    .summary .total td { padding-top: .6rem; border-top: 1px solid #E4EAF0; font-weight: 600; font-size: 1.1rem; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1.5rem; margin: 0; }
+    dt { color: #6B7B88; }
+    dd { margin: 0; }
+    address { font-style: normal; }
+    .muted { color: #6B7B88; font-size: .8rem; }
+    .status { display: inline-block; border-radius: 999px; padding: .1rem .6rem; font-size: .75rem; font-weight: 600; letter-spacing: .04em; }
+    .PAID { background: #E3F2E7; color: #1E5B30; }
+    .PENDING { background: #FEF0DC; color: #8A4B00; }
+    a.button { display: inline-block; margin-top: 2rem; padding: .6rem 1.25rem; border-radius: 4px; background: var(--java-orange);
+      color: var(--ink); font-weight: 600; text-decoration: none; }
+    a.button:hover { background: var(--java-red); color: #fff; }
+    #error { color: #B00020; }
+    #error:empty { display: none; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>EuroCart<span>.</span></h1>
+  </header>
+  <main>
+    <p id="error"></p>
+    <div id="order" hidden>
+      <h2 id="title"></h2>
+      <p class="muted" id="subtitle"></p>
+
+      <h3>Details</h3>
+      <dl>
+        <dt>Order</dt><dd id="order-id"></dd>
+        <dt>Status</dt><dd><span class="status" id="status"></span></dd>
+        <dt>Ordered</dt><dd id="created"></dd>
+        <dt id="paid-label">Paid</dt><dd id="paid"></dd>
+        <dt>Email</dt><dd id="email"></dd>
+      </dl>
+
+      <h3>Products</h3>
+      <table><tbody id="lines"></tbody></table>
+      <table class="summary">
+        <tr id="shipping-row"><td>Shipping</td><td class="num" id="shipping"></td></tr>
+        <tr class="total"><td>Total</td><td class="num" id="total"></td></tr>
+        <tr><td class="muted" colspan="2" id="vat-note"></td></tr>
+      </table>
+
+      <div id="delivery">
+        <h3>Delivery address</h3>
+        <address id="address"></address>
+      </div>
+    </div>
+    <a class="button" href="/">Back to the store</a>
+  </main>
+
+  <script>
+    // Shows a saved order: where the simulated PayPal page sends the customer after paying.
+    const id = new URLSearchParams(location.search).get('id');
+    const errorEl = document.getElementById('error');
+    const dateTime = iso => new Date(iso).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' });
+    const text = (elementId, value) => { document.getElementById(elementId).textContent = value; };
+
+    function render(order) {
+      const pricing = order.pricing;
+      const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: pricing.currency });
+      const paid = order.status === 'PAID';
+
+      text('title', paid ? 'Thank you for your order!' : 'Your order is not paid yet');
+      text('subtitle', paid ? `A confirmation is on its way to ${order.email}.`
+          : 'The order is saved, but the payment has not been completed.');
+      text('order-id', order.id);
+      const status = document.getElementById('status');
+      status.textContent = order.status;
+      status.classList.add(order.status);
+      text('created', dateTime(order.createdAt));
+      document.getElementById('paid-label').hidden = document.getElementById('paid').hidden = !order.paidAt;
+      if (order.paidAt) text('paid', dateTime(order.paidAt));
+      text('email', order.email);
+
+      const tbody = document.getElementById('lines');
+      for (const line of pricing.lines) {
+        const row = tbody.insertRow();
+        row.insertCell().textContent = line.quantity > 1 ? `${line.quantity} × ${line.product.name}` : line.product.name;
+        const amount = row.insertCell();
+        amount.className = 'num';
+        amount.textContent = money.format(line.price.gross);
+      }
+      document.getElementById('shipping-row').hidden = !pricing.shipping;
+      if (pricing.shipping) text('shipping', money.format(pricing.shipping.gross));
+      text('total', money.format(pricing.gross));
+      text('vat-note', `Incl. ${money.format(pricing.vat)} VAT.`);
+
+      const address = order.shipping;
+      document.getElementById('delivery').hidden = !address;
+      if (address) {
+        document.getElementById('address').innerText = [
+          address.fullName,
+          `${address.street} ${address.houseNumber}`,
+          `${address.postalCode} ${address.city}`,
+          address.country,
+          address.phone
+        ].filter(Boolean).join('\n');
+      }
+      document.getElementById('order').hidden = false;
+    }
+
+    async function load() {
+      if (!id) {
+        errorEl.textContent = 'No order given.';
+        return;
+      }
+      const response = await fetch(`/api/orders/${encodeURIComponent(id)}`);
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        errorEl.textContent = (body && body.detail) || 'Order not found.';
+        return;
+      }
+      render(body);
+    }
+
+    load();
+  </script>
+</body>
+</html>

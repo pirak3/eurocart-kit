@@ -60,7 +60,7 @@
         return;
       }
       if (order.status === 'PAID') {
-        location.replace(`/?paid=${encodeURIComponent(order.id)}`);
+        location.replace(`/order.html?id=${encodeURIComponent(order.id)}`);
         return;
       }
       // The order is priced in the currency of the storefront it was placed in.
@@ -94,7 +94,7 @@
         errorEl.textContent = (body && body.detail) || 'Payment failed.';
         return;
       }
-      location.href = `/?paid=${encodeURIComponent(orderId)}`;
+      location.href = `/order.html?id=${encodeURIComponent(orderId)}`;
     };
 
     document.getElementById('cancel').onclick = () => {
